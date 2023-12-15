@@ -8,7 +8,7 @@ I have chosen ESP32 as a flight controller mainly because of its cost, wifi & BL
 4. Motors calibration - The motor's ESCs have to be calibrated before flight, such that they start simultaneously, run this code first and callibrate your esc as per the proper procedure.
 5. Voltage measurement esp32 - this code will measure the boltage level of the lipo 11v battery, you may have to adjust the code values of the resistors as per your -actual resistor values used in the circuit.
 
-##Safety First
+## Safety First
 the quadcopter motors have a lot of destructi energy, please test the code outdoors initially. make sure all propellers are in proper direction as per the schematic. And recheck motor rotations before uploading the main code.
 
 ## Youtube Video link
