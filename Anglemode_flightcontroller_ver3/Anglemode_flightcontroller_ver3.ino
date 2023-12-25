@@ -3,8 +3,8 @@
 #include <Wire.h>
 #include <ESP32Servo.h> // Change to the standard Servo library for ESP32
 
-float RatePitch, RateRoll, RateYaw;
-float RateCalibrationPitch, RateCalibrationRoll, RateCalibrationYaw;
+volatile float RatePitch, RateRoll, RateYaw;
+volatile float RateCalibrationPitch, RateCalibrationRoll, RateCalibrationYaw;
 int RateCalibrationNumber;
 
 Servo mot1;
@@ -37,12 +37,7 @@ const int channel_4_pin = 33;
 const int channel_5_pin = 25;
 const int channel_6_pin = 26;
 
-// float Voltage, Current, BatteryRemaining, BatteryAtStart;
-// float CurrentConsumed = 0;
-// float BatteryDefault = 1300;
-
-uint32_t LoopTimer;
-float t=0.008;
+// float voltage;
 
 float DesiredRateRoll, DesiredRatePitch, DesiredRateYaw;
 float ErrorRateRoll, ErrorRatePitch, ErrorRateYaw;
@@ -57,7 +52,7 @@ float PIDReturn[] = {0, 0, 0};
 // float KalmanAnglePitch=0, KalmanUncertaintyAnglePitch=2*2;
 // float Kalman1DOutput[]={0,0};
 
-float PRateRoll = 0.8; 
+float PRateRoll = 0.7; 
 float IRateRoll = 0.01;
 float DRateRoll = 0.0085;
 
@@ -65,20 +60,23 @@ float PRatePitch = PRateRoll;
 float IRatePitch = IRateRoll;
 float DRatePitch = DRateRoll;
 
-float PRateYaw = 3.2;
-float IRateYaw = 2.6;
+float PRateYaw = 4.2;
+float IRateYaw = 1.2;
 float DRateYaw = 0;
 
+uint32_t LoopTimer;
+float t=0.01;      //time cycle
+
 //Kalman filters for angle mode
-float AccX, AccY, AccZ;
-float AngleRoll, AnglePitch;
-float KalmanAngleRoll=0, KalmanUncertaintyAngleRoll=2*2;
-float KalmanAnglePitch=0, KalmanUncertaintyAnglePitch=2*2;
-float Kalman1DOutput[]={0,0};
-float DesiredAngleRoll, DesiredAnglePitch;
-float ErrorAngleRoll, ErrorAnglePitch;
-float PrevErrorAngleRoll, PrevErrorAnglePitch;
-float PrevItermAngleRoll, PrevItermAnglePitch;
+volatile float AccX, AccY, AccZ;
+volatile float AngleRoll, AnglePitch;
+volatile float KalmanAngleRoll=0, KalmanUncertaintyAngleRoll=2*2;
+volatile float KalmanAnglePitch=0, KalmanUncertaintyAnglePitch=2*2;
+volatile float Kalman1DOutput[]={0,0};
+volatile float DesiredAngleRoll, DesiredAnglePitch;
+volatile float ErrorAngleRoll, ErrorAnglePitch;
+volatile float PrevErrorAngleRoll, PrevErrorAnglePitch;
+volatile float PrevItermAngleRoll, PrevItermAnglePitch;
 float PAngleRoll=2; float PAnglePitch=PAngleRoll;
 float IAngleRoll=0; float IAnglePitch=IAngleRoll;
 float DAngleRoll=0; float DAnglePitch=DAngleRoll;
@@ -92,7 +90,7 @@ void kalman_1d(float KalmanState, float KalmanUncertainty, float KalmanInput, fl
   Kalman1DOutput[1]=KalmanUncertainty;
 }
 
-float MotorInput1, MotorInput2, MotorInput3, MotorInput4;
+volatile float MotorInput1, MotorInput2, MotorInput3, MotorInput4;
 
 void channelInterruptHandler()
 {
@@ -341,8 +339,16 @@ int led_time=100;
   Wire.endTransmission();
 
  
+  mot1.attach(mot1_pin,1000,2000);
+  mot2.attach(mot2_pin,1000,2000);
+  mot3.attach(mot3_pin,1000,2000);
+  mot4.attach(mot4_pin,1000,2000);
+//to stop esc from beeping
+  mot1.write(0);
+  mot2.write(0);
+  mot3.write(0);
+  mot4.write(0); 
   digitalWrite(15, LOW);
-
   digitalWrite(15, HIGH);
   delay(2000);
   digitalWrite(15, LOW);
@@ -380,10 +386,7 @@ int led_time=100;
   delay(1000);
 
 
-  mot1.attach(mot1_pin,1000,2000);
-  mot2.attach(mot2_pin,1000,2000);
-  mot3.attach(mot3_pin,1000,2000);
-  mot4.attach(mot4_pin,1000,2000);
+
 
   
 
@@ -410,8 +413,8 @@ void loop(void) {
   channelInterruptHandler();
   neutralPositionAdjustment();
 
-  DesiredAngleRoll=0.10*(ReceiverValue[0]-1500);
-  DesiredAnglePitch=0.10*(ReceiverValue[1]-1500);
+  DesiredAngleRoll=0.1*(ReceiverValue[0]-1500);
+    DesiredAnglePitch=0.1*(ReceiverValue[1]-1500);
   InputThrottle=ReceiverValue[2];
   DesiredRateYaw=0.15*(ReceiverValue[3]-1500);
 
@@ -513,15 +516,11 @@ void loop(void) {
   mot3.write(map(MotorInput3, 1000, 2000, 0, 180));
   mot4.write(map(MotorInput4, 1000, 2000, 0, 180));
 
-//  battery_voltage();
-//   CurrentConsumed = Current * 1000 * 0.004 / 3600 + CurrentConsumed;
-//   BatteryRemaining = (BatteryAtStart - CurrentConsumed) / BatteryDefault * 100;
+// voltage= (analogRead(36)/4096)*12.46*(35.9/36);
+// if(voltage<11.1)
+// {
 
-  // if (BatteryRemaining <= 30)
-  //   digitalWrite(4, HIGH);
-  // else
-  //   digitalWrite(4, LOW);
-
+// }
 
 //Reciever signals
   // Serial.print(ReceiverValue[0]);
@@ -594,7 +593,5 @@ void loop(void) {
      LoopTimer = micros();
 
   }
-
-
 
 }
