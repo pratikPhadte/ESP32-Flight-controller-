@@ -55,7 +55,7 @@ float PIDReturn[] = {0, 0, 0};
 // float KalmanAnglePitch=0, KalmanUncertaintyAnglePitch=2*2;
 // float Kalman1DOutput[]={0,0};
 
-float PRateRoll = 0.7; 
+float PRateRoll = 0.74; 
 float IRateRoll = 0.01;
 float DRateRoll = 0.0085;
 
@@ -64,7 +64,7 @@ float IRatePitch = IRateRoll;
 float DRatePitch = DRateRoll;
 
 float PRateYaw = 4.2;
-float IRateYaw = 1.2;
+float IRateYaw = 2.8;
 float DRateYaw = 0;
 
 uint32_t LoopTimer;
