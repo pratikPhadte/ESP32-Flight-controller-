@@ -55,8 +55,8 @@ float PIDReturn[] = {0, 0, 0};
 // float KalmanAnglePitch=0, KalmanUncertaintyAnglePitch=2*2;
 // float Kalman1DOutput[]={0,0};
 
-float PRateRoll = 0.74; 
-float IRateRoll = 0.01;
+float PRateRoll = 0.6; 
+float IRateRoll = 0.012;
 float DRateRoll = 0.0085;
 
 float PRatePitch = PRateRoll;
@@ -68,7 +68,7 @@ float IRateYaw = 2.8;
 float DRateYaw = 0;
 
 uint32_t LoopTimer;
-float t=0.01;      //time cycle
+float t=0.006;      //time cycle
 
 //Kalman filters for angle mode
 volatile float AccX, AccY, AccZ;
