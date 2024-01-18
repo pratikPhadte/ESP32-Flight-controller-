@@ -55,7 +55,7 @@ float PIDReturn[] = {0, 0, 0};
 // float KalmanAnglePitch=0, KalmanUncertaintyAnglePitch=2*2;
 // float Kalman1DOutput[]={0,0};
 
-float PRateRoll = 0.6; 
+float PRateRoll = 0.75; //For outdoor flights, keep this gain to 0.75 and for indoor flights keep the gain to be 0.6
 float IRateRoll = 0.012;
 float DRateRoll = 0.0085;
 
