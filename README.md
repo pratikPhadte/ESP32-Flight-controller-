@@ -12,12 +12,6 @@ I have chosen ESP32 as a flight controller mainly because of its cost, wifi & BL
 The quadcopter motors & propellers have a lot of destructive energy, please test the code outdoors initially. make sure all propellers are in the correct direction as per the schematic. Recheck motor rotations before uploading the main code.
 
 ## Youtube Video link
-https://www.youtube.com/watch?v=TmAVuMhu9no
 https://youtu.be/BcPTe-hTJGc?si=5ig9wEDCqvCX-sgO
 
-## Warranty Disclaimer
-THERE IS NO WARRANTY FOR THE SOFTWARE, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR 
-OTHER PARTIES PROVIDE THE SOFTWARE “AS IS” WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
-OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE SOFTWARE IS WITH THE CUSTOMER. SHOULD THE 
-SOFTWARE PROVE DEFECTIVE, THE CUSTOMER ASSUMES THE COST OF ALL NECESSARY SERVICING, REPAIR, OR CORRECTION EXCEPT TO THE EXTENT SET OUT UNDER THE HARDWARE 
-WARRANTY IN THESE TERMS.
+https://www.youtube.com/watch?v=TmAVuMhu9no
