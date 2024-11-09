@@ -13,11 +13,196 @@
 #include <ESP32Servo.h> // Change to the standard Servo library for ESP32
 
 
-AsyncWebServer server(80);
 
 // REPLACE WITH YOUR NETWORK CREDENTIALS
- const char* ssid = "yourRouterName";
- const char* password = "yourRouterPassword";
+ const char* ssid = "your wiif name";
+ const char* password = "your wifi password";
+
+float PRateRoll = 0.72; 
+float IRateRoll = 0.7;
+float DRateRoll = 0.0085;
+
+float PRatePitch = PRateRoll;
+float IRatePitch = IRateRoll;
+float DRatePitch = DRateRoll;
+
+float PRateYaw = 3;
+float IRateYaw = 2;
+float DRateYaw = 0;
+
+uint32_t LoopTimer;
+float t=0.004;      //time cycle
+
+
+volatile float RatePitch, RateRoll, RateYaw;
+volatile float RateCalibrationPitch, RateCalibrationRoll, RateCalibrationYaw,AccXCalibration,AccYCalibration,AccZCalibration;
+int RateCalibrationNumber;
+
+Servo mot1;
+Servo mot2;
+Servo mot3;
+Servo mot4;
+const int mot1_pin = 13;
+const int mot2_pin = 12;
+const int mot3_pin = 14;
+const int mot4_pin = 27;
+
+volatile uint32_t current_time;
+volatile uint32_t last_channel_1 = 0;
+volatile uint32_t last_channel_2 = 0;
+volatile uint32_t last_channel_3 = 0;
+volatile uint32_t last_channel_4 = 0;
+volatile uint32_t last_channel_5 = 0;
+volatile uint32_t last_channel_6 = 0;
+volatile uint32_t timer_1;
+volatile uint32_t timer_2;
+volatile uint32_t timer_3;
+volatile uint32_t timer_4;
+volatile uint32_t timer_5;
+volatile uint32_t timer_6;
+volatile int ReceiverValue[6]; // Increase the array size to 6 for Channel 1 to Channel 6
+const int channel_1_pin = 34;
+const int channel_2_pin = 35;
+const int channel_3_pin = 32;
+const int channel_4_pin = 33;
+const int channel_5_pin = 25;
+const int channel_6_pin = 26;
+
+volatile float PtermRoll;
+volatile float ItermRoll;
+volatile float DtermRoll;
+volatile float PIDOutputRoll;
+volatile float PtermPitch;
+volatile float ItermPitch;
+volatile float DtermPitch;
+volatile float PIDOutputPitch;
+volatile float PtermYaw;
+volatile float ItermYaw;
+volatile float DtermYaw;
+volatile float PIDOutputYaw;
+volatile float KalmanGainPitch;
+volatile float KalmanGainRoll;
+
+int ThrottleIdle = 1150;
+int ThrottleCutOff = 1000;
+
+volatile float DesiredRateRoll, DesiredRatePitch, DesiredRateYaw;
+volatile float ErrorRateRoll, ErrorRatePitch, ErrorRateYaw;
+volatile float InputRoll, InputThrottle, InputPitch, InputYaw;
+volatile float PrevErrorRateRoll, PrevErrorRatePitch, PrevErrorRateYaw;
+volatile float PrevItermRateRoll, PrevItermRatePitch, PrevItermRateYaw;
+volatile float PIDReturn[] = {0, 0, 0};
+
+const float scaleFactor = 0.18;  // (180 - 0) / (2000 - 1000) //instead used constant values
+const float offset = -180;  //-1000* scaleFactor; // Offset to adjust 1000 to 0
+
+
+
+//Kalman filters for angle mode
+volatile float AccX, AccY, AccZ;
+volatile float AngleRoll, AnglePitch;
+volatile float KalmanAngleRoll=0, KalmanUncertaintyAngleRoll=2*2;
+volatile float KalmanAnglePitch=0, KalmanUncertaintyAnglePitch=2*2;
+volatile float Kalman1DOutput[]={0,0};
+volatile float DesiredAngleRoll, DesiredAnglePitch;
+volatile float ErrorAngleRoll, ErrorAnglePitch;
+volatile float PrevErrorAngleRoll, PrevErrorAnglePitch;
+volatile float PrevItermAngleRoll, PrevItermAnglePitch;
+float PAngleRoll=2; float PAnglePitch=PAngleRoll;
+float IAngleRoll=0; float IAnglePitch=IAngleRoll;
+float DAngleRoll=0; float DAnglePitch=DAngleRoll;
+
+volatile float MotorInput1, MotorInput2, MotorInput3, MotorInput4;
+
+void kalman_1d(float KalmanState, float KalmanUncertainty, float KalmanInput, float KalmanMeasurement) {
+  KalmanState=KalmanState + (t*KalmanInput);
+  KalmanUncertainty=KalmanUncertainty + (t*t*4*4); //here 4 is the vairnece of IMU i.e 4 deg/s
+  float KalmanGain=KalmanUncertainty * 1/(1*KalmanUncertainty + 3 * 3); //std deviation of error is 3 deg
+  KalmanState=KalmanState+KalmanGain * (KalmanMeasurement-KalmanState);
+  KalmanUncertainty=(1-KalmanGain) * KalmanUncertainty;
+  Kalman1DOutput[0]=KalmanState; 
+  Kalman1DOutput[1]=KalmanUncertainty;
+}
+
+
+void channelInterruptHandler()
+{
+current_time = micros(); if (digitalRead(channel_1_pin)) { if (last_channel_1 == 0) { last_channel_1 = 1; timer_1 = current_time; } } else if (last_channel_1 == 1) { last_channel_1 = 0; ReceiverValue[0] = current_time - timer_1; } 
+if (digitalRead(channel_2_pin)) { if (last_channel_2 == 0) { last_channel_2 = 1; timer_2 = current_time; } } else if (last_channel_2 == 1) { last_channel_2 = 0; ReceiverValue[1] = current_time - timer_2; } 
+if (digitalRead(channel_3_pin)) { if (last_channel_3 == 0) { last_channel_3 = 1; timer_3 = current_time; } } else if (last_channel_3 == 1) { last_channel_3 = 0; ReceiverValue[2] = current_time - timer_3; } 
+if (digitalRead(channel_4_pin)) { if (last_channel_4 == 0) { last_channel_4 = 1; timer_4 = current_time; } } else if (last_channel_4 == 1) { last_channel_4 = 0; ReceiverValue[3] = current_time - timer_4; } 
+if (digitalRead(channel_5_pin)) { if (last_channel_5 == 0) { last_channel_5 = 1; timer_5 = current_time; } } else if (last_channel_5 == 1) { last_channel_5 = 0; ReceiverValue[4] = current_time - timer_5; } 
+if (digitalRead(channel_6_pin)) { if (last_channel_6 == 0) { last_channel_6 = 1; timer_6 = current_time; } } else if (last_channel_6 == 1) { last_channel_6 = 0; ReceiverValue[5] = current_time - timer_6; }
+}
+
+void gyro_signals(void)
+{
+Wire.beginTransmission(0x68);
+  Wire.write(0x1A);
+  Wire.write(0x05);
+  Wire.endTransmission();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1C);
+  Wire.write(0x10);
+  Wire.endTransmission();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x3B);
+  Wire.endTransmission(); 
+  Wire.requestFrom(0x68,6);
+  int16_t AccXLSB = Wire.read() << 8 | Wire.read();
+  int16_t AccYLSB = Wire.read() << 8 | Wire.read();
+  int16_t AccZLSB = Wire.read() << 8 | Wire.read();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1B); 
+  Wire.write(0x8);
+  Wire.endTransmission();                                                   
+  Wire.beginTransmission(0x68);
+  Wire.write(0x43);
+  Wire.endTransmission();
+  Wire.requestFrom(0x68,6);
+  int16_t GyroX=Wire.read()<<8 | Wire.read();
+  int16_t GyroY=Wire.read()<<8 | Wire.read();
+  int16_t GyroZ=Wire.read()<<8 | Wire.read();
+  RateRoll=(float)GyroX/65.5;
+  RatePitch=(float)GyroY/65.5;
+  RateYaw=(float)GyroZ/65.5;
+  AccX=(float)AccXLSB/4096;
+  AccY=(float)AccYLSB/4096;
+  AccZ=(float)AccZLSB/4096;
+  AngleRoll=atan(AccY/sqrt(AccX*AccX+AccZ*AccZ))*57.29; //*1/(3.142/180);
+  AnglePitch=-atan(AccX/sqrt(AccY*AccY+AccZ*AccZ))*57.29;
+}
+
+void pid_equation(float Error, float P, float I, float D, float PrevError, float PrevIterm)
+{
+  float Pterm = P * Error;
+  float Iterm = PrevIterm +( I * (Error + PrevError) * (t/2));
+  if (Iterm > 400)
+  {
+    Iterm = 400;
+  }
+  else if (Iterm < -400)
+  {
+  Iterm = -400;
+  }
+  float Dterm = D *( (Error - PrevError)/t);
+  float PIDOutput = Pterm + Iterm + Dterm;
+  if (PIDOutput > 400)
+  {
+    PIDOutput = 400;
+  }
+  else if (PIDOutput < -400)
+  {
+    PIDOutput = -400;
+  }
+  PIDReturn[0] = PIDOutput;
+  PIDReturn[1] = Error;
+  PIDReturn[2] = Iterm;
+}
+
+//WIFI tuning global code
+AsyncWebServer server(80);
+
 
 const char* PARAM_P_GAIN = "pGain";   //For Pitch & Roll
 const char* PARAM_I_GAIN = "iGain";
@@ -141,297 +326,14 @@ else if(var == "tc"){
 }
 
 
-volatile float RatePitch, RateRoll, RateYaw;
-volatile float RateCalibrationPitch, RateCalibrationRoll, RateCalibrationYaw;
-int RateCalibrationNumber;
-
-Servo mot1;
-Servo mot2;
-Servo mot3;
-Servo mot4;
-const int mot1_pin = 13;
-const int mot2_pin = 12;
-const int mot3_pin = 14;
-const int mot4_pin = 27;
-
-volatile uint32_t current_time;
-volatile uint32_t last_channel_1 = 0;
-volatile uint32_t last_channel_2 = 0;
-volatile uint32_t last_channel_3 = 0;
-volatile uint32_t last_channel_4 = 0;
-volatile uint32_t last_channel_5 = 0;
-volatile uint32_t last_channel_6 = 0;
-volatile uint32_t timer_1;
-volatile uint32_t timer_2;
-volatile uint32_t timer_3;
-volatile uint32_t timer_4;
-volatile uint32_t timer_5;
-volatile uint32_t timer_6;
-volatile int ReceiverValue[6]; // Increase the array size to 6 for Channel 1 to Channel 6
-const int channel_1_pin = 34;
-const int channel_2_pin = 35;
-const int channel_3_pin = 32;
-const int channel_4_pin = 33;
-const int channel_5_pin = 25;
-const int channel_6_pin = 26;
-
-// float voltage;
-
-float DesiredRateRoll, DesiredRatePitch, DesiredRateYaw;
-float ErrorRateRoll, ErrorRatePitch, ErrorRateYaw;
-float InputRoll, InputThrottle, InputPitch, InputYaw;
-float PrevErrorRateRoll, PrevErrorRatePitch, PrevErrorRateYaw;
-float PrevItermRateRoll, PrevItermRatePitch, PrevItermRateYaw;
-float PIDReturn[] = {0, 0, 0};
-
-// float AccX, AccY, AccZ;
-// float AngleRoll, AnglePitch;
-// float KalmanAngleRoll=0, KalmanUncertaintyAngleRoll=2*2;
-// float KalmanAnglePitch=0, KalmanUncertaintyAnglePitch=2*2;
-// float Kalman1DOutput[]={0,0};
-
-float PRateRoll = 0.6; //For outdoor flights, keep this gain to 0.75 and for indoor flights keep the gain to be 0.6
-
-float IRateRoll = 0.012;
-float DRateRoll = 0.0085;
-
-float PRatePitch = PRateRoll;
-float IRatePitch = IRateRoll;
-float DRatePitch = DRateRoll;
-
-float PRateYaw = 4.2;
-float IRateYaw = 2.8;
-float DRateYaw = 0;
-
-uint32_t LoopTimer;
-float t=0.006;      //time cycle
-
-//Kalman filters for angle mode
-volatile float AccX, AccY, AccZ;
-volatile float AngleRoll, AnglePitch;
-volatile float KalmanAngleRoll=0, KalmanUncertaintyAngleRoll=2*2;
-volatile float KalmanAnglePitch=0, KalmanUncertaintyAnglePitch=2*2;
-volatile float Kalman1DOutput[]={0,0};
-volatile float DesiredAngleRoll, DesiredAnglePitch;
-volatile float ErrorAngleRoll, ErrorAnglePitch;
-volatile float PrevErrorAngleRoll, PrevErrorAnglePitch;
-volatile float PrevItermAngleRoll, PrevItermAnglePitch;
-float PAngleRoll=2; float PAnglePitch=PAngleRoll;
-float IAngleRoll=0; float IAnglePitch=IAngleRoll;
-float DAngleRoll=0; float DAnglePitch=DAngleRoll;
-void kalman_1d(float KalmanState, float KalmanUncertainty, float KalmanInput, float KalmanMeasurement) {
-  KalmanState=KalmanState + (t*KalmanInput);
-  KalmanUncertainty=KalmanUncertainty + (t*t*4*4); //here 4 is the vairnece of IMU i.e 4 deg/s
-  float KalmanGain=KalmanUncertainty * 1/(1*KalmanUncertainty + 3 * 3); //std deviation of error is 3 deg
-  KalmanState=KalmanState+KalmanGain * (KalmanMeasurement-KalmanState);
-  KalmanUncertainty=(1-KalmanGain) * KalmanUncertainty;
-  Kalman1DOutput[0]=KalmanState; 
-  Kalman1DOutput[1]=KalmanUncertainty;
-}
-
-volatile float MotorInput1, MotorInput2, MotorInput3, MotorInput4;
-
-void channelInterruptHandler()
-{
-  current_time = micros();
-  // Channel 1
-  if (digitalRead(channel_1_pin))
-  {
-    if (last_channel_1 == 0)
-    {
-      last_channel_1 = 1;
-      timer_1 = current_time;
-    }
-  }
-  else if (last_channel_1 == 1)
-  {
-    last_channel_1 = 0;
-    ReceiverValue[0] = current_time - timer_1;
-  }
-
-  // Channel 2
-  if (digitalRead(channel_2_pin))
-  {
-    if (last_channel_2 == 0)
-    {
-      last_channel_2 = 1;
-      timer_2 = current_time;
-    }
-  }
-  else if (last_channel_2 == 1)
-  {
-    last_channel_2 = 0;
-    ReceiverValue[1] = current_time - timer_2;
-  }
-
-  // Channel 3
-  if (digitalRead(channel_3_pin))
-  {
-    if (last_channel_3 == 0)
-    {
-      last_channel_3 = 1;
-      timer_3 = current_time;
-    }
-  }
-  else if (last_channel_3 == 1)
-  {
-    last_channel_3 = 0;
-    ReceiverValue[2] = current_time - timer_3;
-  }
-
-  // Channel 4
-  if (digitalRead(channel_4_pin))
-  {
-    if (last_channel_4 == 0)
-    {
-      last_channel_4 = 1;
-      timer_4 = current_time;
-    }
-  }
-  else if (last_channel_4 == 1)
-  {
-    last_channel_4 = 0;
-    ReceiverValue[3] = current_time - timer_4;
-  }
-
-  // Channel 5
-  if (digitalRead(channel_5_pin))
-  {
-    if (last_channel_5 == 0)
-    {
-      last_channel_5 = 1;
-      timer_5 = current_time;
-    }
-  }
-  else if (last_channel_5 == 1)
-  {
-    last_channel_5 = 0;
-    ReceiverValue[4] = current_time - timer_5;
-  }
-
-  // Channel 6
-  if (digitalRead(channel_6_pin))
-  {
-    if (last_channel_6 == 0)
-    {
-      last_channel_6 = 1;
-      timer_6 = current_time;
-    }
-  }
-  else if (last_channel_6 == 1)
-  {
-    last_channel_6 = 0;
-    ReceiverValue[5] = current_time - timer_6;
-  }
-}
-
-
-void neutralPositionAdjustment()
-{
-  int min = 1490;
-  int max = 1510;
-  if (ReceiverValue[0] < max && ReceiverValue[0] > min)
-  {
-    ReceiverValue[0]= 1500;
-  } 
-  if (ReceiverValue[1] < max && ReceiverValue[1] > min)
-  {
-    ReceiverValue[1]= 1500;
-  } 
-  if (ReceiverValue[3] < max && ReceiverValue[3] > min)
-  {
-    ReceiverValue[3]= 1500;
-  } 
-  if(ReceiverValue[0]==ReceiverValue[1] && ReceiverValue[1]==ReceiverValue[3] && ReceiverValue[3]==ReceiverValue[0] )
-  {
-    ReceiverValue[0]= 1500;
-    ReceiverValue[1]= 1500;
-    ReceiverValue[3]= 1500;
-  }
-
-
-
-}
-void gyro_signals(void)
-{
-Wire.beginTransmission(0x68);
-  Wire.write(0x1A);
-  Wire.write(0x05);
-  Wire.endTransmission();
-  Wire.beginTransmission(0x68);
-  Wire.write(0x1C);
-  Wire.write(0x10);
-  Wire.endTransmission();
-  Wire.beginTransmission(0x68);
-  Wire.write(0x3B);
-  Wire.endTransmission(); 
-  Wire.requestFrom(0x68,6);
-  int16_t AccXLSB = Wire.read() << 8 | Wire.read();
-  int16_t AccYLSB = Wire.read() << 8 | Wire.read();
-  int16_t AccZLSB = Wire.read() << 8 | Wire.read();
-  Wire.beginTransmission(0x68);
-  Wire.write(0x1B); 
-  Wire.write(0x8);
-  Wire.endTransmission();                                                   
-  Wire.beginTransmission(0x68);
-  Wire.write(0x43);
-  Wire.endTransmission();
-  Wire.requestFrom(0x68,6);
-  int16_t GyroX=Wire.read()<<8 | Wire.read();
-  int16_t GyroY=Wire.read()<<8 | Wire.read();
-  int16_t GyroZ=Wire.read()<<8 | Wire.read();
-  RateRoll=(float)GyroX/65.5;
-  RatePitch=(float)GyroY/65.5;
-  RateYaw=(float)GyroZ/65.5;
-  AccX=(float)AccXLSB/4096;
-  AccY=(float)AccYLSB/4096;
-  AccZ=(float)AccZLSB/4096;
-  AccZ=AccZ-0.26; // calibration offset
-  AngleRoll=atan(AccY/sqrt(AccX*AccX+AccZ*AccZ))*1/(3.142/180);
-  AnglePitch=-atan(AccX/sqrt(AccY*AccY+AccZ*AccZ))*1/(3.142/180);
-}
-
-void pid_equation(float Error, float P, float I, float D, float PrevError, float PrevIterm)
-{
-  float Pterm = P * Error;
-  float Iterm = PrevIterm +( I * (Error + PrevError) * (t/2));
-  if (Iterm > 400)
-  {
-    Iterm = 400;
-  }
-  else if (Iterm < -400)
-  {
-  Iterm = -400;
-  }
-  float Dterm = D *( (Error - PrevError)/t);
-  float PIDOutput = Pterm + Iterm + Dterm;
-  if (PIDOutput > 400)
-  {
-    PIDOutput = 400;
-  }
-  else if (PIDOutput < -400)
-  {
-    PIDOutput = -400;
-  }
-  PIDReturn[0] = PIDOutput;
-  PIDReturn[1] = Error;
-  PIDReturn[2] = Iterm;
-}
-
-void reset_pid(void)
-{
-  PrevErrorRateRoll=0; PrevErrorRatePitch=0; PrevErrorRateYaw=0;
-  PrevItermRateRoll=0; PrevItermRatePitch=0; PrevItermRateYaw=0;
-  PrevErrorAngleRoll=0; PrevErrorAnglePitch=0;    
-  PrevItermAngleRoll=0; PrevItermAnglePitch=0;
-}
-
 
 
 
 void setup(void) {
   
 Serial.begin(115200);
+
+//WIFI server setup START
 // Initialize SPIFFS
   #ifdef ESP32
     if(!SPIFFS.begin(true)){
@@ -444,7 +346,6 @@ Serial.begin(115200);
       return;
     }
   #endif
-
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   if (WiFi.waitForConnectResult() != WL_CONNECTED) {
@@ -453,8 +354,9 @@ Serial.begin(115200);
   }
   Serial.println();
   Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
 
+  Serial.println(WiFi.localIP());
+  delay(2000);
   // Send web page with input fields to client
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/html", index_html, processor);
@@ -501,7 +403,28 @@ else if (request->hasParam(PARAM_P_YAW)) {
 
   server.onNotFound(notFound);
   server.begin();
+//WIFI server setup END
 
+int led_time=100;
+ pinMode(15, OUTPUT);
+  digitalWrite(15, LOW);
+  delay(led_time);
+  digitalWrite(15, HIGH);
+  delay(led_time);
+  digitalWrite(15, LOW);
+  delay(led_time);
+  digitalWrite(15, HIGH);
+  delay(led_time);
+  digitalWrite(15, LOW);
+  delay(led_time);
+  digitalWrite(15, HIGH);
+  delay(led_time);
+  digitalWrite(15, LOW);
+  delay(led_time);
+  digitalWrite(15, HIGH);
+  delay(led_time);
+  digitalWrite(15, LOW);
+  delay(led_time);
 
 
   pinMode(channel_1_pin, INPUT_PULLUP);
@@ -536,82 +459,71 @@ else if (request->hasParam(PARAM_P_YAW)) {
   mot2.write(0);
   mot3.write(0);
   mot4.write(0); 
-
-  int led_time=100;
- pinMode(15, OUTPUT);
-  digitalWrite(15, LOW);
-  delay(led_time);
-  digitalWrite(15, HIGH);
-  delay(led_time);
-  digitalWrite(15, LOW);
-  delay(led_time);
-  digitalWrite(15, HIGH);
-  delay(led_time);
-  digitalWrite(15, LOW);
-  delay(led_time);
-  digitalWrite(15, HIGH);
-  delay(led_time);
-  digitalWrite(15, LOW);
-  delay(led_time);
-  digitalWrite(15, HIGH);
-  delay(led_time);
-  digitalWrite(15, LOW);
-  delay(led_time);
-
   digitalWrite(15, LOW);
   digitalWrite(15, HIGH);
-  delay(2000);
+  delay(500);
   digitalWrite(15, LOW);
-  delay(2000);
+  delay(500);
 
 
-  for (RateCalibrationNumber = 0; RateCalibrationNumber < 4000; RateCalibrationNumber++)
-  {
-    gyro_signals();
-    RateCalibrationRoll += RateRoll;
-    RateCalibrationPitch += RatePitch;
-    RateCalibrationYaw += RateYaw;
-    delay(1);
-  }
-  RateCalibrationRoll /= 4000;
-  RateCalibrationPitch /= 4000;
-  RateCalibrationYaw /= 4000;
-//Gyro Calibrated Values
-  // Serial.print("Gyro Calib: ");
-  // Serial.print(RateCalibrationRoll);
-  // Serial.print("  ");
-  // Serial.print(RateCalibrationPitch);
-  // Serial.print("  ");
-  // Serial.print(RateCalibrationYaw);
-  // Serial.print(" -- ");
+  // for (RateCalibrationNumber = 0; RateCalibrationNumber < 2000; RateCalibrationNumber++)
+  // {
+  //   gyro_signals();
+  //   RateCalibrationRoll += RateRoll;
+  //   RateCalibrationPitch += RatePitch;
+  //   RateCalibrationYaw += RateYaw;
+  //   AccZCalibration +=  AccZ;
 
+  //   delay(1);
+  // }
+  // RateCalibrationRoll /= 2000;
+  // RateCalibrationPitch /= 2000;
+  // RateCalibrationYaw /= 2000;
+  // AccZCalibration /=2000;
+  // AccZCalibration = AccZCalibration-1 ;
+
+// //Gyro Calibrated Values
+//   Serial.print("Gyro Calib: ");
+//   Serial.print(RateCalibrationRoll);
+//   Serial.print("  ");
+//   Serial.print(RateCalibrationPitch);
+//   Serial.print("  ");
+//   Serial.print(RateCalibrationYaw);
+//   Serial.print(" -- ");
+//   Serial.print(AccZCalibration);
+//   Serial.print(" -- ");
 
   digitalWrite(15, HIGH);
   delay(1000);
   digitalWrite(15, LOW);
   delay(1000);
-  digitalWrite(15, HIGH);
-  delay(1000);
-  digitalWrite(15, LOW);
-  delay(1000);
 
-
-
-
-  
+RateCalibrationRoll=0.26;
+RateCalibrationPitch=-0.74;
+RateCalibrationYaw=-2.14;
+AccXCalibration=0.02;
+AccYCalibration=0.01;
+AccZCalibration=-0.07;
 
 LoopTimer = micros();
+
+
+
 
 
 }
 
 void loop(void) {
-
-if(ReceiverValue[2] < 1030 && ReceiverValue[4] > 1500 )
+  if(ReceiverValue[4] > 1500 ) //channel 5 for uploading values
 {
+
 PRateRoll = readFile(SPIFFS, "/pGain.txt").toFloat();
 IRateRoll = readFile(SPIFFS, "/iGain.txt").toFloat();
 DRateRoll = readFile(SPIFFS, "/dGain.txt").toFloat();
+
+PRatePitch = PRateRoll;
+IRatePitch = IRateRoll;
+DRatePitch = DRateRoll;
 
 PRateYaw = readFile(SPIFFS, "/pYaw.txt").toFloat();
 IRateYaw = readFile(SPIFFS, "/iYaw.txt").toFloat();
@@ -620,57 +532,160 @@ DRateYaw = readFile(SPIFFS, "/dYaw.txt").toFloat();
 t = readFile(SPIFFS, "/tc.txt").toFloat();
 }
 
+current_time = micros(); 
+if (digitalRead(channel_1_pin)) { if (last_channel_1 == 0) { last_channel_1 = 1; timer_1 = current_time; } } else if (last_channel_1 == 1) { last_channel_1 = 0; ReceiverValue[0] = current_time - timer_1; } 
+if (digitalRead(channel_2_pin)) { if (last_channel_2 == 0) { last_channel_2 = 1; timer_2 = current_time; } } else if (last_channel_2 == 1) { last_channel_2 = 0; ReceiverValue[1] = current_time - timer_2; } 
+if (digitalRead(channel_3_pin)) { if (last_channel_3 == 0) { last_channel_3 = 1; timer_3 = current_time; } } else if (last_channel_3 == 1) { last_channel_3 = 0; ReceiverValue[2] = current_time - timer_3; } 
+if (digitalRead(channel_4_pin)) { if (last_channel_4 == 0) { last_channel_4 = 1; timer_4 = current_time; } } else if (last_channel_4 == 1) { last_channel_4 = 0; ReceiverValue[3] = current_time - timer_4; } 
+if (digitalRead(channel_5_pin)) { if (last_channel_5 == 0) { last_channel_5 = 1; timer_5 = current_time; } } else if (last_channel_5 == 1) { last_channel_5 = 0; ReceiverValue[4] = current_time - timer_5; } 
+if (digitalRead(channel_6_pin)) { if (last_channel_6 == 0) { last_channel_6 = 1; timer_6 = current_time; } } else if (last_channel_6 == 1) { last_channel_6 = 0; ReceiverValue[5] = current_time - timer_6; }
+
+
   //enter your loop code here
-  gyro_signals();
-   RateRoll -= RateCalibrationRoll;
-   RatePitch -= RateCalibrationPitch;
-   RateYaw -= RateCalibrationYaw;
+Wire.beginTransmission(0x68);
+  Wire.write(0x1A);
+  Wire.write(0x05);
+  Wire.endTransmission();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1C);
+  Wire.write(0x10);
+  Wire.endTransmission();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x3B);
+  Wire.endTransmission(); 
+  Wire.requestFrom(0x68,6);
+  int16_t AccXLSB = Wire.read() << 8 | Wire.read();
+  int16_t AccYLSB = Wire.read() << 8 | Wire.read();
+  int16_t AccZLSB = Wire.read() << 8 | Wire.read();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1B); 
+  Wire.write(0x8);
+  Wire.endTransmission();                                                   
+  Wire.beginTransmission(0x68);
+  Wire.write(0x43);
+  Wire.endTransmission();
+  Wire.requestFrom(0x68,6);
+  int16_t GyroX=Wire.read()<<8 | Wire.read();
+  int16_t GyroY=Wire.read()<<8 | Wire.read();
+  int16_t GyroZ=Wire.read()<<8 | Wire.read();
+  RateRoll=(float)GyroX/65.5;
+  RatePitch=(float)GyroY/65.5;
+  RateYaw=(float)GyroZ/65.5;
+  AccX=(float)AccXLSB/4096;
+  AccY=(float)AccYLSB/4096;
+  AccZ=(float)AccZLSB/4096;
 
 
-  kalman_1d(KalmanAngleRoll, KalmanUncertaintyAngleRoll, RateRoll, AngleRoll);
-  KalmanAngleRoll=Kalman1DOutput[0]; KalmanUncertaintyAngleRoll=Kalman1DOutput[1];
-  kalman_1d(KalmanAnglePitch, KalmanUncertaintyAnglePitch, RatePitch, AnglePitch);
-  KalmanAnglePitch=Kalman1DOutput[0]; KalmanUncertaintyAnglePitch=Kalman1DOutput[1];
-  
-  channelInterruptHandler();
-  neutralPositionAdjustment();
+RateRoll -= RateCalibrationRoll;
+RatePitch -= RateCalibrationPitch;
+RateYaw -= RateCalibrationYaw;
 
-  DesiredAngleRoll=0.1*(ReceiverValue[0]-1500);
-    DesiredAnglePitch=0.1*(ReceiverValue[1]-1500);
-  InputThrottle=ReceiverValue[2];
-  DesiredRateYaw=0.15*(ReceiverValue[3]-1500);
+AccX -= AccXCalibration ;
+AccY -= AccYCalibration ;
+AccZ -= AccZCalibration;
 
-  ErrorAngleRoll=DesiredAngleRoll-KalmanAngleRoll;
-  ErrorAnglePitch=DesiredAnglePitch-KalmanAnglePitch;
+  AngleRoll=atan(AccY/sqrt(AccX*AccX+AccZ*AccZ))*57.29;
+  AnglePitch=-atan(AccX/sqrt(AccY*AccY+AccZ*AccZ))*57.29;
 
-  pid_equation(ErrorAngleRoll, PAngleRoll, IAngleRoll, DAngleRoll, PrevErrorAngleRoll, PrevItermAngleRoll);     
-  DesiredRateRoll=PIDReturn[0]; 
-  PrevErrorAngleRoll=PIDReturn[1];
-  PrevItermAngleRoll=PIDReturn[2];
+// Inlined Kalman Filter computation in the loop
+KalmanAngleRoll += t * RateRoll;
+KalmanUncertaintyAngleRoll += t * t * 16; // Variance of IMU (4 deg/s) squared
+KalmanGainRoll = KalmanUncertaintyAngleRoll / (KalmanUncertaintyAngleRoll + 9); // Error variance (3 deg) squared
+KalmanAngleRoll += KalmanGainRoll * (AngleRoll - KalmanAngleRoll);
+KalmanUncertaintyAngleRoll *= (1 - KalmanGainRoll);
 
-  pid_equation(ErrorAnglePitch, PAnglePitch, IAnglePitch, DAnglePitch, PrevErrorAnglePitch, PrevItermAnglePitch);
-  DesiredRatePitch=PIDReturn[0]; 
-  PrevErrorAnglePitch=PIDReturn[1];
-  PrevItermAnglePitch=PIDReturn[2];
+// Set output for Roll Kalman
+Kalman1DOutput[0] = KalmanAngleRoll;
+Kalman1DOutput[1] = KalmanUncertaintyAngleRoll;
 
-  ErrorRateRoll=DesiredRateRoll-RateRoll;
-  ErrorRatePitch=DesiredRatePitch-RatePitch;
-  ErrorRateYaw=DesiredRateYaw-RateYaw;
+// Inlined Kalman Filter computation for Pitch
+KalmanAnglePitch += t * RatePitch;
+KalmanUncertaintyAnglePitch += t * t * 16; // Variance of IMU (4 deg/s) squared
+KalmanGainPitch = KalmanUncertaintyAnglePitch / (KalmanUncertaintyAnglePitch + 9); // Error variance (3 deg) squared
+KalmanAnglePitch += KalmanGainPitch * (AnglePitch - KalmanAnglePitch);
+KalmanUncertaintyAnglePitch *= (1 - KalmanGainPitch);
 
-  pid_equation(ErrorRateRoll, PRateRoll, IRateRoll, DRateRoll, PrevErrorRateRoll, PrevItermRateRoll);
-       InputRoll=PIDReturn[0];
-       PrevErrorRateRoll=PIDReturn[1]; 
-       PrevItermRateRoll=PIDReturn[2];
+// Set output for Pitch Kalman
+Kalman1DOutput[0] = KalmanAnglePitch;
+Kalman1DOutput[1] = KalmanUncertaintyAnglePitch;
 
-  pid_equation(ErrorRatePitch, PRatePitch,IRatePitch, DRatePitch, PrevErrorRatePitch, PrevItermRatePitch);
-       InputPitch=PIDReturn[0]; 
-       PrevErrorRatePitch=PIDReturn[1]; 
-       PrevItermRatePitch=PIDReturn[2];
+KalmanAngleRoll = (KalmanAngleRoll > 20) ? 20 : ((KalmanAngleRoll < -20) ? -20 : KalmanAngleRoll);
+KalmanAnglePitch = (KalmanAnglePitch > 20) ? 20 : ((KalmanAnglePitch < -20) ? -20 : KalmanAnglePitch);
 
-  pid_equation(ErrorRateYaw, PRateYaw,IRateYaw, DRateYaw, PrevErrorRateYaw, PrevItermRateYaw);
-       InputYaw=PIDReturn[0]; 
-       PrevErrorRateYaw=PIDReturn[1]; 
-       PrevItermRateYaw=PIDReturn[2];
+
+DesiredAngleRoll=0.1*(ReceiverValue[0]-1500);
+DesiredAnglePitch=0.1*(ReceiverValue[1]-1500);
+InputThrottle=ReceiverValue[2];
+DesiredRateYaw=0.15*(ReceiverValue[3]-1500);
+
+// Inlined PID equation for Roll
+ErrorAngleRoll = DesiredAngleRoll - KalmanAngleRoll;
+PtermRoll = PAngleRoll * ErrorAngleRoll;
+ItermRoll = PrevItermAngleRoll + (IAngleRoll * (ErrorAngleRoll + PrevErrorAngleRoll) * (t / 2));
+ItermRoll = (ItermRoll > 400) ? 400 : ((ItermRoll < -400) ? -400 : ItermRoll);
+DtermRoll = DAngleRoll * ((ErrorAngleRoll - PrevErrorAngleRoll) / t);
+PIDOutputRoll = PtermRoll + ItermRoll + DtermRoll;
+PIDOutputRoll = (PIDOutputRoll > 400) ? 400 : ((PIDOutputRoll < -400) ? -400 : PIDOutputRoll);
+DesiredRateRoll = PIDOutputRoll;
+PrevErrorAngleRoll = ErrorAngleRoll;
+PrevItermAngleRoll = ItermRoll;
+
+ErrorAnglePitch = DesiredAnglePitch - KalmanAnglePitch;
+PtermPitch = PAnglePitch * ErrorAnglePitch;
+ItermPitch = PrevItermAnglePitch + (IAnglePitch * (ErrorAnglePitch + PrevErrorAnglePitch) * (t / 2));
+ItermPitch = (ItermPitch > 400) ? 400 : ((ItermPitch < -400) ? -400 : ItermPitch);
+DtermPitch = DAnglePitch * ((ErrorAnglePitch - PrevErrorAnglePitch) / t);
+PIDOutputPitch = PtermPitch + ItermPitch + DtermPitch;
+PIDOutputPitch = (PIDOutputPitch > 400) ? 400 : ((PIDOutputPitch < -400) ? -400 : PIDOutputPitch);
+DesiredRatePitch = PIDOutputPitch;
+PrevErrorAnglePitch = ErrorAnglePitch;
+PrevItermAnglePitch = ItermPitch;
+
+// Compute errors
+ErrorRateRoll = DesiredRateRoll - RateRoll;
+ErrorRatePitch = DesiredRatePitch - RatePitch;
+ErrorRateYaw = DesiredRateYaw - RateYaw;
+
+// Roll Axis PID
+PtermRoll = PRateRoll * ErrorRateRoll;
+ItermRoll = PrevItermRateRoll + (IRateRoll * (ErrorRateRoll + PrevErrorRateRoll) * (t / 2));
+ItermRoll = (ItermRoll > 400) ? 400 : ((ItermRoll < -400) ? -400 : ItermRoll);
+DtermRoll = DRateRoll * ((ErrorRateRoll - PrevErrorRateRoll) / t);
+PIDOutputRoll = PtermRoll + ItermRoll + DtermRoll;
+PIDOutputRoll = (PIDOutputRoll > 400) ? 400 : ((PIDOutputRoll < -400) ? -400 : PIDOutputRoll);
+
+// Update output and previous values for Roll
+InputRoll = PIDOutputRoll;
+PrevErrorRateRoll = ErrorRateRoll;
+PrevItermRateRoll = ItermRoll;
+
+// Pitch Axis PID
+PtermPitch = PRatePitch * ErrorRatePitch;
+ItermPitch = PrevItermRatePitch + (IRatePitch * (ErrorRatePitch + PrevErrorRatePitch) * (t / 2));
+ItermPitch = (ItermPitch > 400) ? 400 : ((ItermPitch < -400) ? -400 : ItermPitch);
+DtermPitch = DRatePitch * ((ErrorRatePitch - PrevErrorRatePitch) / t);
+PIDOutputPitch = PtermPitch + ItermPitch + DtermPitch;
+PIDOutputPitch = (PIDOutputPitch > 400) ? 400 : ((PIDOutputPitch < -400) ? -400 : PIDOutputPitch);
+
+// Update output and previous values for Pitch
+InputPitch = PIDOutputPitch;
+PrevErrorRatePitch = ErrorRatePitch;
+PrevItermRatePitch = ItermPitch;
+
+// Yaw Axis PID
+PtermYaw = PRateYaw * ErrorRateYaw;
+ItermYaw = PrevItermRateYaw + (IRateYaw * (ErrorRateYaw + PrevErrorRateYaw) * (t / 2));
+ItermYaw = (ItermYaw > 400) ? 400 : ((ItermYaw < -400) ? -400 : ItermYaw);  // Clamp ItermYaw to [-400, 400]
+DtermYaw = DRateYaw * ((ErrorRateYaw - PrevErrorRateYaw) / t);
+PIDOutputYaw = PtermYaw + ItermYaw + DtermYaw;
+PIDOutputYaw = (PIDOutputYaw > 400) ? 400 : ((PIDOutputYaw < -400) ? -400 : PIDOutputYaw);  // Clamp PIDOutputYaw to [-400, 400]
+
+
+// Update output and previous values for Yaw
+InputYaw = PIDOutputYaw;
+PrevErrorRateYaw = ErrorRateYaw;
+PrevItermRateYaw = ItermYaw;
+
 
   if (InputThrottle > 1800)
   {
@@ -705,7 +720,8 @@ t = readFile(SPIFFS, "/tc.txt").toFloat();
   }
 
 
-  int ThrottleIdle = 1150;
+// int ThrottleIdle = 1150;
+// int ThrottleCutOff = 1000;
   if (MotorInput1 < ThrottleIdle)
   {
     MotorInput1 = ThrottleIdle;
@@ -723,27 +739,37 @@ t = readFile(SPIFFS, "/tc.txt").toFloat();
     MotorInput4 = ThrottleIdle;
   }
 
-  int ThrottleCutOff = 1000;
-  if (ReceiverValue[2] < 1050)
+  // int ThrottleCutOff = 1000;
+  if (ReceiverValue[2] < 1030 ) // dont Arm the motors
   {
+    //if(ReceiverValue[5]<1400) //uncomment only if you want arming of motors before flight, done by making channel 6 high >1500 us
+    {
     MotorInput1 = ThrottleCutOff;
     MotorInput2 = ThrottleCutOff;
     MotorInput3 = ThrottleCutOff;
     MotorInput4 = ThrottleCutOff;
-    reset_pid();
+    }
+    // else
+    // {
+    // MotorInput1 = ThrottleIdle;
+    // MotorInput2 = ThrottleIdle;
+    // MotorInput3 = ThrottleIdle;
+    // MotorInput4 = ThrottleIdle;
+    // }
+
+  PrevErrorRateRoll=0; PrevErrorRatePitch=0; PrevErrorRateYaw=0;
+  PrevItermRateRoll=0; PrevItermRatePitch=0; PrevItermRateYaw=0;
+  PrevErrorAngleRoll=0; PrevErrorAnglePitch=0;    
+  PrevItermAngleRoll=0; PrevItermAnglePitch=0;
   }
 
-  mot1.write(map(MotorInput1, 1000, 2000, 0, 180));
-  mot2.write(map(MotorInput2, 1000, 2000, 0, 180));
-  mot3.write(map(MotorInput3, 1000, 2000, 0, 180));
-  mot4.write(map(MotorInput4, 1000, 2000, 0, 180));
+// Calculate motor control values directly
+mot1.write(MotorInput1 * 0.18 -180);
+mot2.write(MotorInput2 * 0.18 -180);
+mot3.write(MotorInput3 * 0.18 -180);
+mot4.write(MotorInput4 * 0.18 -180);
 
-// voltage= (analogRead(36)/4096)*12.46*(35.9/36);
-// if(voltage<11.1)
-// {
-
-// }
-
+ 
 //Reciever signals
   // Serial.print(ReceiverValue[0]);
   // Serial.print(" - ");
@@ -754,10 +780,10 @@ t = readFile(SPIFFS, "/tc.txt").toFloat();
   // Serial.print(ReceiverValue[3]);
   // Serial.print(" --- ");
  
-//   // Serial.print(ReceiverValue[4]);
-//   // Serial.print(" - ");
-//   // Serial.print(ReceiverValue[5]);
-//   // Serial.print(" - ");
+  // Serial.print(ReceiverValue[4]);
+  // Serial.print(" - ");
+  // Serial.print(ReceiverValue[5]);
+  // Serial.print(" - ");
 
 //Motor PWMs in us
   // Serial.print("MotVals-");
@@ -778,8 +804,19 @@ t = readFile(SPIFFS, "/tc.txt").toFloat();
 //   Serial.print(DesiredRateYaw);
 //   Serial.print(" -- ");
 
-// //Gyro Rates
-  // Serial.print(" Gyro rates:");
+// // //IMU values
+  // Serial.print("Acc values: ");
+  // Serial.print("AccX:");
+  // Serial.print(AccX);
+  // Serial.print("  ");
+  // Serial.print("AccY:");
+  // Serial.print(AccY);
+  // Serial.print("  ");
+  // Serial.print("AccZ:");
+  // Serial.print(AccZ);
+  // Serial.print(" -- ");
+  // Print the gyroscope values
+  // Serial.print("Gyro values: ");
   // Serial.print(RateRoll);
   // Serial.print("  ");
   // Serial.print(RatePitch);
@@ -803,13 +840,20 @@ t = readFile(SPIFFS, "/tc.txt").toFloat();
   // Serial.print(AngleRoll);
   // //serial.print("  ");
   //   Serial.print("AnglePitch:");
-  // Serial.println(AnglePitch);
+  // Serial.print(AnglePitch);
+
+  // // Serial.print("KalmanAngleRoll:");
+  // // Serial.print(KalmanAngleRoll);
+  // // //serial.print("  ");
+  // //   Serial.print("KalmanAnglePitch:");
+  // // Serial.print(KalmanAnglePitch);
+
 
   
   //  Serial.println(" ");
 
 
- 
+
   while (micros() - LoopTimer < (t*1000000));
   {
      LoopTimer = micros();
