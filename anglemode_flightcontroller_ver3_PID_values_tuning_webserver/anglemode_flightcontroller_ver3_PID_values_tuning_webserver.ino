@@ -742,21 +742,11 @@ PrevItermRateYaw = ItermYaw;
   // int ThrottleCutOff = 1000;
   if (ReceiverValue[2] < 1030 ) // dont Arm the motors
   {
-    //if(ReceiverValue[5]<1400) //uncomment only if you want arming of motors before flight, done by making channel 6 high >1500 us
-    {
+
     MotorInput1 = ThrottleCutOff;
     MotorInput2 = ThrottleCutOff;
     MotorInput3 = ThrottleCutOff;
     MotorInput4 = ThrottleCutOff;
-    }
-    // else
-    // {
-    // MotorInput1 = ThrottleIdle;
-    // MotorInput2 = ThrottleIdle;
-    // MotorInput3 = ThrottleIdle;
-    // MotorInput4 = ThrottleIdle;
-    // }
-
   PrevErrorRateRoll=0; PrevErrorRatePitch=0; PrevErrorRateYaw=0;
   PrevItermRateRoll=0; PrevItermRatePitch=0; PrevItermRateYaw=0;
   PrevErrorAngleRoll=0; PrevErrorAnglePitch=0;    
