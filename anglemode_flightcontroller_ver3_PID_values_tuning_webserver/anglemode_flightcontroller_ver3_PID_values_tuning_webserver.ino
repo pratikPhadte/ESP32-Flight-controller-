@@ -8,28 +8,35 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
-
 #include <Wire.h>
 #include <ESP32Servo.h> // Change to the standard Servo library for ESP32
 
 
-
 // REPLACE WITH YOUR NETWORK CREDENTIALS
- const char* ssid = "your wiif name";
- const char* password = "your wifi password";
+//COnnect your PC/mobile to this wifi and open the IP address from the serial monitor in your browser.
+ const char* ssid = "your_wifi_ssid";
+ const char* password = "your_wifi_password";
 
-float PRateRoll = 0.72; 
-float IRateRoll = 0.7;
-float DRateRoll = 0.0085;
+float PRateRoll = 0.625; 
+float IRateRoll = 2.1;
+float DRateRoll = 0.008;
+
+float PAngleRoll=2; 
+float IAngleRoll=0;
+float DAngleRoll=0.007; 
+
+float PRateYaw = 4;
+float IRateYaw = 3;
+float DRateYaw = 0;
+
+int ESCfreq=500;
 
 float PRatePitch = PRateRoll;
 float IRatePitch = IRateRoll;
 float DRatePitch = DRateRoll;
-
-float PRateYaw = 3;
-float IRateYaw = 2;
-float DRateYaw = 0;
-
+float PAnglePitch=PAngleRoll;
+ float IAnglePitch=IAngleRoll;
+ float DAnglePitch=DAngleRoll;
 uint32_t LoopTimer;
 float t=0.004;      //time cycle
 
@@ -44,7 +51,7 @@ Servo mot3;
 Servo mot4;
 const int mot1_pin = 13;
 const int mot2_pin = 12;
-const int mot3_pin = 14;
+const int mot3_pin = 16; //14 for perf board
 const int mot4_pin = 27;
 
 volatile uint32_t current_time;
@@ -61,6 +68,23 @@ volatile uint32_t timer_4;
 volatile uint32_t timer_5;
 volatile uint32_t timer_6;
 volatile int ReceiverValue[6]; // Increase the array size to 6 for Channel 1 to Channel 6
+volatile int channel_1_pwm_prev;
+volatile int channel_2_pwm_prev;
+volatile int channel_3_pwm_prev;
+volatile int channel_4_pwm_prev;
+volatile  int channel_1_pwm;
+volatile  int channel_2_pwm;
+ volatile int channel_3_pwm;
+ volatile int channel_4_pwm;
+float b=0.7;
+
+  unsigned long channel_1_fs = 1500; //thro
+unsigned long channel_2_fs = 1500; //ail
+unsigned long channel_3_fs = 1000; //elev
+unsigned long channel_4_fs = 1500; //rudd
+unsigned long channel_5_fs = 1000; //gear, greater than 1500 = throttle cut
+unsigned long channel_6_fs = 1000; //aux1
+
 const int channel_1_pin = 34;
 const int channel_2_pin = 35;
 const int channel_3_pin = 32;
@@ -83,7 +107,7 @@ volatile float PIDOutputYaw;
 volatile float KalmanGainPitch;
 volatile float KalmanGainRoll;
 
-int ThrottleIdle = 1150;
+int ThrottleIdle = 1170;
 int ThrottleCutOff = 1000;
 
 volatile float DesiredRateRoll, DesiredRatePitch, DesiredRateYaw;
@@ -93,10 +117,8 @@ volatile float PrevErrorRateRoll, PrevErrorRatePitch, PrevErrorRateYaw;
 volatile float PrevItermRateRoll, PrevItermRatePitch, PrevItermRateYaw;
 volatile float PIDReturn[] = {0, 0, 0};
 
-const float scaleFactor = 0.18;  // (180 - 0) / (2000 - 1000) //instead used constant values
-const float offset = -180;  //-1000* scaleFactor; // Offset to adjust 1000 to 0
-
-
+float complementaryAngleRoll = 0.0f;
+float complementaryAnglePitch = 0.0f;
 
 //Kalman filters for angle mode
 volatile float AccX, AccY, AccZ;
@@ -108,9 +130,6 @@ volatile float DesiredAngleRoll, DesiredAnglePitch;
 volatile float ErrorAngleRoll, ErrorAnglePitch;
 volatile float PrevErrorAngleRoll, PrevErrorAnglePitch;
 volatile float PrevItermAngleRoll, PrevItermAnglePitch;
-float PAngleRoll=2; float PAnglePitch=PAngleRoll;
-float IAngleRoll=0; float IAnglePitch=IAngleRoll;
-float DAngleRoll=0; float DAnglePitch=DAngleRoll;
 
 volatile float MotorInput1, MotorInput2, MotorInput3, MotorInput4;
 
@@ -204,9 +223,13 @@ void pid_equation(float Error, float P, float I, float D, float PrevError, float
 AsyncWebServer server(80);
 
 
-const char* PARAM_P_GAIN = "pGain";   //For Pitch & Roll
+const char* PARAM_P_GAIN = "pGain";   //For Pitch & Roll RATE
 const char* PARAM_I_GAIN = "iGain";
 const char* PARAM_D_GAIN = "dGain";
+
+const char* PARAM_P_A_GAIN = "pAGain";   //For Pitch & Roll ANGLE
+const char* PARAM_I_A_GAIN = "iAGain";
+const char* PARAM_D_A_GAIN = "dAGain";
 
 const char* PARAM_P_YAW = "pYaw";     //For Yaw
 const char* PARAM_I_YAW = "iYaw";
@@ -240,6 +263,18 @@ const char index_html[] PROGMEM = R"rawliteral(
   </form><br>
   <form action="/get" target="hidden-form">
     D Pitch & Roll Gain (current value %dGain%): <input type="number" step="any" name="dGain">
+    <input type="submit" value="Submit" onclick="submitMessage()">
+  </form><br>
+  <form action="/get" target="hidden-form">
+    P Pitch & Roll Angle Gain (current value %pAGain%): <input type="number" step="any" name="pAGain">
+    <input type="submit" value="Submit" onclick="submitMessage()">
+  </form><br>
+    <form action="/get" target="hidden-form">
+    I Pitch & Roll Angle Gain (current value %iAGain%): <input type="number" step="any" name="iAGain">
+    <input type="submit" value="Submit" onclick="submitMessage()">
+  </form><br>
+    <form action="/get" target="hidden-form">
+    D Pitch & Roll Angle Gain (current value %dAGain%): <input type="number" step="any" name="dAGain">
     <input type="submit" value="Submit" onclick="submitMessage()">
   </form><br>
   <form action="/get" target="hidden-form">
@@ -309,6 +344,15 @@ else if(var == "iGain"){
 }
 else if(var == "dGain"){
     return readFile(SPIFFS, "/dGain.txt");
+}
+else if(var == "pAGain"){
+    return readFile(SPIFFS, "/pAGain.txt");
+}
+else if(var == "iAGain"){
+    return readFile(SPIFFS, "/iAGain.txt");
+}
+else if(var == "dAGain"){
+    return readFile(SPIFFS, "/dAGain.txt");
 }
 else if(var == "pYaw"){
     return readFile(SPIFFS, "/pYaw.txt");
@@ -380,6 +424,18 @@ else if (request->hasParam(PARAM_D_GAIN)) {
     inputMessage = request->getParam(PARAM_D_GAIN)->value();
     writeFile(SPIFFS, "/dGain.txt", inputMessage.c_str());
 }
+else if (request->hasParam(PARAM_P_A_GAIN)) {
+    inputMessage = request->getParam(PARAM_P_A_GAIN)->value();
+    writeFile(SPIFFS, "/pAGain.txt", inputMessage.c_str());
+}
+else if (request->hasParam(PARAM_I_A_GAIN)) {
+    inputMessage = request->getParam(PARAM_I_A_GAIN)->value();
+    writeFile(SPIFFS, "/iAGain.txt", inputMessage.c_str());
+}
+else if (request->hasParam(PARAM_D_A_GAIN)) {
+    inputMessage = request->getParam(PARAM_D_A_GAIN)->value();
+    writeFile(SPIFFS, "/dAGain.txt", inputMessage.c_str());
+}
 else if (request->hasParam(PARAM_P_YAW)) {
     inputMessage = request->getParam(PARAM_P_YAW)->value();
     writeFile(SPIFFS, "/pYaw.txt", inputMessage.c_str());
@@ -440,6 +496,7 @@ int led_time=100;
   attachInterrupt(digitalPinToInterrupt(channel_4_pin), channelInterruptHandler, CHANGE);
   attachInterrupt(digitalPinToInterrupt(channel_5_pin), channelInterruptHandler, CHANGE);
   attachInterrupt(digitalPinToInterrupt(channel_6_pin), channelInterruptHandler, CHANGE);
+  delay(100);
   
   Wire.setClock(400000);
   Wire.begin();
@@ -449,71 +506,53 @@ int led_time=100;
   Wire.write(0x00);
   Wire.endTransmission();
 
- 
+ 	ESP32PWM::allocateTimer(0);
+	ESP32PWM::allocateTimer(1);
+	ESP32PWM::allocateTimer(2);
+	ESP32PWM::allocateTimer(3);
+
+  delay(1000);
   mot1.attach(mot1_pin,1000,2000);
+  delay(1000);
+  mot1.setPeriodHertz(ESCfreq);
+  delay(100);
   mot2.attach(mot2_pin,1000,2000);
+  delay(1000);
+  mot2.setPeriodHertz(ESCfreq);
+  delay(100);
   mot3.attach(mot3_pin,1000,2000);
+  delay(1000);
+  mot3.setPeriodHertz(ESCfreq);
+  delay(100);
   mot4.attach(mot4_pin,1000,2000);
-//to stop esc from beeping
-  mot1.write(0);
-  mot2.write(0);
-  mot3.write(0);
-  mot4.write(0); 
+  delay(1000);
+  mot4.setPeriodHertz(ESCfreq);
+  delay(100);
+
+  mot1.writeMicroseconds(1000);
+  mot2.writeMicroseconds(1000);
+  mot3.writeMicroseconds(1000);
+  mot4.writeMicroseconds(1000);
+   delay(500);
   digitalWrite(15, LOW);
   digitalWrite(15, HIGH);
   delay(500);
   digitalWrite(15, LOW);
   delay(500);
 
-
-  // for (RateCalibrationNumber = 0; RateCalibrationNumber < 2000; RateCalibrationNumber++)
-  // {
-  //   gyro_signals();
-  //   RateCalibrationRoll += RateRoll;
-  //   RateCalibrationPitch += RatePitch;
-  //   RateCalibrationYaw += RateYaw;
-  //   AccZCalibration +=  AccZ;
-
-  //   delay(1);
-  // }
-  // RateCalibrationRoll /= 2000;
-  // RateCalibrationPitch /= 2000;
-  // RateCalibrationYaw /= 2000;
-  // AccZCalibration /=2000;
-  // AccZCalibration = AccZCalibration-1 ;
-
-// //Gyro Calibrated Values
-//   Serial.print("Gyro Calib: ");
-//   Serial.print(RateCalibrationRoll);
-//   Serial.print("  ");
-//   Serial.print(RateCalibrationPitch);
-//   Serial.print("  ");
-//   Serial.print(RateCalibrationYaw);
-//   Serial.print(" -- ");
-//   Serial.print(AccZCalibration);
-//   Serial.print(" -- ");
-
-  digitalWrite(15, HIGH);
-  delay(1000);
-  digitalWrite(15, LOW);
-  delay(1000);
-
-RateCalibrationRoll=0.26;
-RateCalibrationPitch=-0.74;
-RateCalibrationYaw=-2.14;
-AccXCalibration=0.02;
+RateCalibrationRoll=0.27;
+RateCalibrationPitch=-0.85;
+RateCalibrationYaw=-2.09;
+AccXCalibration=0.03;
 AccYCalibration=0.01;
 AccZCalibration=-0.07;
 
 LoopTimer = micros();
 
-
-
-
-
 }
 
 void loop(void) {
+
   if(ReceiverValue[4] > 1500 ) //channel 5 for uploading values
 {
 
@@ -525,20 +564,20 @@ PRatePitch = PRateRoll;
 IRatePitch = IRateRoll;
 DRatePitch = DRateRoll;
 
+PAngleRoll=readFile(SPIFFS, "/pAGain.txt").toFloat();; 
+IAngleRoll=readFile(SPIFFS, "/iAGain.txt").toFloat();; 
+DAngleRoll=readFile(SPIFFS, "/dAGain.txt").toFloat();; 
+
+PAnglePitch=PAngleRoll;
+IAnglePitch=IAngleRoll;
+DAnglePitch=DAngleRoll;
+
 PRateYaw = readFile(SPIFFS, "/pYaw.txt").toFloat();
 IRateYaw = readFile(SPIFFS, "/iYaw.txt").toFloat();
 DRateYaw = readFile(SPIFFS, "/dYaw.txt").toFloat();
 
 t = readFile(SPIFFS, "/tc.txt").toFloat();
 }
-
-current_time = micros(); 
-if (digitalRead(channel_1_pin)) { if (last_channel_1 == 0) { last_channel_1 = 1; timer_1 = current_time; } } else if (last_channel_1 == 1) { last_channel_1 = 0; ReceiverValue[0] = current_time - timer_1; } 
-if (digitalRead(channel_2_pin)) { if (last_channel_2 == 0) { last_channel_2 = 1; timer_2 = current_time; } } else if (last_channel_2 == 1) { last_channel_2 = 0; ReceiverValue[1] = current_time - timer_2; } 
-if (digitalRead(channel_3_pin)) { if (last_channel_3 == 0) { last_channel_3 = 1; timer_3 = current_time; } } else if (last_channel_3 == 1) { last_channel_3 = 0; ReceiverValue[2] = current_time - timer_3; } 
-if (digitalRead(channel_4_pin)) { if (last_channel_4 == 0) { last_channel_4 = 1; timer_4 = current_time; } } else if (last_channel_4 == 1) { last_channel_4 = 0; ReceiverValue[3] = current_time - timer_4; } 
-if (digitalRead(channel_5_pin)) { if (last_channel_5 == 0) { last_channel_5 = 1; timer_5 = current_time; } } else if (last_channel_5 == 1) { last_channel_5 = 0; ReceiverValue[4] = current_time - timer_5; } 
-if (digitalRead(channel_6_pin)) { if (last_channel_6 == 0) { last_channel_6 = 1; timer_6 = current_time; } } else if (last_channel_6 == 1) { last_channel_6 = 0; ReceiverValue[5] = current_time - timer_6; }
 
 
   //enter your loop code here
@@ -587,30 +626,38 @@ AccZ -= AccZCalibration;
   AngleRoll=atan(AccY/sqrt(AccX*AccX+AccZ*AccZ))*57.29;
   AnglePitch=-atan(AccX/sqrt(AccY*AccY+AccZ*AccZ))*57.29;
 
-// Inlined Kalman Filter computation in the loop
-KalmanAngleRoll += t * RateRoll;
-KalmanUncertaintyAngleRoll += t * t * 16; // Variance of IMU (4 deg/s) squared
-KalmanGainRoll = KalmanUncertaintyAngleRoll / (KalmanUncertaintyAngleRoll + 9); // Error variance (3 deg) squared
-KalmanAngleRoll += KalmanGainRoll * (AngleRoll - KalmanAngleRoll);
-KalmanUncertaintyAngleRoll *= (1 - KalmanGainRoll);
+// // Inlined Kalman Filter computation in the loop
+// KalmanAngleRoll += t * RateRoll;
+// KalmanUncertaintyAngleRoll += t * t * 16; // Variance of IMU (4 deg/s) squared
+// KalmanGainRoll = KalmanUncertaintyAngleRoll / (KalmanUncertaintyAngleRoll + 9); // Error variance (3 deg) squared
+// KalmanAngleRoll += KalmanGainRoll * (AngleRoll - KalmanAngleRoll);
+// KalmanUncertaintyAngleRoll *= (1 - KalmanGainRoll);
 
-// Set output for Roll Kalman
-Kalman1DOutput[0] = KalmanAngleRoll;
-Kalman1DOutput[1] = KalmanUncertaintyAngleRoll;
+// // Set output for Roll Kalman
+// Kalman1DOutput[0] = KalmanAngleRoll;
+// Kalman1DOutput[1] = KalmanUncertaintyAngleRoll;
 
-// Inlined Kalman Filter computation for Pitch
-KalmanAnglePitch += t * RatePitch;
-KalmanUncertaintyAnglePitch += t * t * 16; // Variance of IMU (4 deg/s) squared
-KalmanGainPitch = KalmanUncertaintyAnglePitch / (KalmanUncertaintyAnglePitch + 9); // Error variance (3 deg) squared
-KalmanAnglePitch += KalmanGainPitch * (AnglePitch - KalmanAnglePitch);
-KalmanUncertaintyAnglePitch *= (1 - KalmanGainPitch);
+// // Inlined Kalman Filter computation for Pitch
+// KalmanAnglePitch += t * RatePitch;
+// KalmanUncertaintyAnglePitch += t * t * 16; // Variance of IMU (4 deg/s) squared
+// KalmanGainPitch = KalmanUncertaintyAnglePitch / (KalmanUncertaintyAnglePitch + 9); // Error variance (3 deg) squared
+// KalmanAnglePitch += KalmanGainPitch * (AnglePitch - KalmanAnglePitch);
+// KalmanUncertaintyAnglePitch *= (1 - KalmanGainPitch);
 
-// Set output for Pitch Kalman
-Kalman1DOutput[0] = KalmanAnglePitch;
-Kalman1DOutput[1] = KalmanUncertaintyAnglePitch;
+// // Set output for Pitch Kalman
+// Kalman1DOutput[0] = KalmanAnglePitch;
+// Kalman1DOutput[1] = KalmanUncertaintyAnglePitch;
 
-KalmanAngleRoll = (KalmanAngleRoll > 20) ? 20 : ((KalmanAngleRoll < -20) ? -20 : KalmanAngleRoll);
-KalmanAnglePitch = (KalmanAnglePitch > 20) ? 20 : ((KalmanAnglePitch < -20) ? -20 : KalmanAnglePitch);
+// KalmanAngleRoll = (KalmanAngleRoll > 20) ? 20 : ((KalmanAngleRoll < -20) ? -20 : KalmanAngleRoll);
+// KalmanAnglePitch = (KalmanAnglePitch > 20) ? 20 : ((KalmanAnglePitch < -20) ? -20 : KalmanAnglePitch);
+
+
+complementaryAngleRoll=0.991*(complementaryAngleRoll+RateRoll*t) + 0.009*AngleRoll;
+complementaryAnglePitch=0.991*(complementaryAnglePitch+RatePitch*t) + 0.009*AnglePitch;
+// Clamping complementary filter roll angle to ±20 degrees
+complementaryAngleRoll = (complementaryAngleRoll > 20) ? 20 : ((complementaryAngleRoll < -20) ? -20 : complementaryAngleRoll);
+complementaryAnglePitch = (complementaryAnglePitch > 20) ? 20 : ((complementaryAnglePitch < -20) ? -20 : complementaryAnglePitch);
+
 
 
 DesiredAngleRoll=0.1*(ReceiverValue[0]-1500);
@@ -618,8 +665,9 @@ DesiredAnglePitch=0.1*(ReceiverValue[1]-1500);
 InputThrottle=ReceiverValue[2];
 DesiredRateYaw=0.15*(ReceiverValue[3]-1500);
 
+
 // Inlined PID equation for Roll
-ErrorAngleRoll = DesiredAngleRoll - KalmanAngleRoll;
+ErrorAngleRoll = DesiredAngleRoll - complementaryAngleRoll;
 PtermRoll = PAngleRoll * ErrorAngleRoll;
 ItermRoll = PrevItermAngleRoll + (IAngleRoll * (ErrorAngleRoll + PrevErrorAngleRoll) * (t / 2));
 ItermRoll = (ItermRoll > 400) ? 400 : ((ItermRoll < -400) ? -400 : ItermRoll);
@@ -630,7 +678,7 @@ DesiredRateRoll = PIDOutputRoll;
 PrevErrorAngleRoll = ErrorAngleRoll;
 PrevItermAngleRoll = ItermRoll;
 
-ErrorAnglePitch = DesiredAnglePitch - KalmanAnglePitch;
+ErrorAnglePitch = DesiredAnglePitch - complementaryAnglePitch;
 PtermPitch = PAnglePitch * ErrorAnglePitch;
 ItermPitch = PrevItermAnglePitch + (IAnglePitch * (ErrorAnglePitch + PrevErrorAnglePitch) * (t / 2));
 ItermPitch = (ItermPitch > 400) ? 400 : ((ItermPitch < -400) ? -400 : ItermPitch);
@@ -739,41 +787,115 @@ PrevItermRateYaw = ItermYaw;
     MotorInput4 = ThrottleIdle;
   }
 
-  // int ThrottleCutOff = 1000;
-  if (ReceiverValue[2] < 1030 ) // dont Arm the motors
+ if (ReceiverValue[2] < 1030 ) // dont Arm the motors
   {
+   
+  MotorInput1 = ThrottleCutOff;
+  MotorInput2 = ThrottleCutOff;
+  MotorInput3 = ThrottleCutOff;
+  MotorInput4 = ThrottleCutOff;
 
-    MotorInput1 = ThrottleCutOff;
-    MotorInput2 = ThrottleCutOff;
-    MotorInput3 = ThrottleCutOff;
-    MotorInput4 = ThrottleCutOff;
   PrevErrorRateRoll=0; PrevErrorRatePitch=0; PrevErrorRateYaw=0;
   PrevItermRateRoll=0; PrevItermRatePitch=0; PrevItermRateYaw=0;
   PrevErrorAngleRoll=0; PrevErrorAnglePitch=0;    
   PrevItermAngleRoll=0; PrevItermAnglePitch=0;
+  
   }
 
 // Calculate motor control values directly
-mot1.write(MotorInput1 * 0.18 -180);
-mot2.write(MotorInput2 * 0.18 -180);
-mot3.write(MotorInput3 * 0.18 -180);
-mot4.write(MotorInput4 * 0.18 -180);
+mot1.writeMicroseconds(MotorInput1);
+mot2.writeMicroseconds(MotorInput2);
+mot3.writeMicroseconds(MotorInput3);
+mot4.writeMicroseconds(MotorInput4);
 
- 
+
+
 //Reciever signals
   // Serial.print(ReceiverValue[0]);
-  // Serial.print(" - ");
+  // Serial.print(" ");
   // Serial.print(ReceiverValue[1]);
-  // Serial.print(" - ");
+  // Serial.print(" ");
   // Serial.print(ReceiverValue[2]);
-  // Serial.print(" - ");
+  // Serial.print(" ");
   // Serial.print(ReceiverValue[3]);
-  // Serial.print(" --- ");
+  // Serial.print(" ");
+
+  // // Print PWM values with labels
+  // Serial.print("channel_1_pwm:");
+  // Serial.print(channel_1_pwm);
+  // Serial.print(" ");
+
+  // Serial.print("channel_2_pwm:");
+  // Serial.print(channel_2_pwm);
+  // Serial.print(" ");
+
+  // Serial.print("channel_3_pwm:");
+  // Serial.print(channel_3_pwm);
+  // Serial.print(" ");
+
+  // Serial.print("channel_4_pwm:");
+  // Serial.print(channel_4_pwm);
+  // Serial.print(" ");
+
+//  // Print Receiver signals with labels
+//   Serial.print("ReceiverValue_0:");
+//   Serial.print(ReceiverValue[0]);
+//   Serial.print(" ");
+
+//   Serial.print("ReceiverValue_1:");
+//   Serial.print(ReceiverValue[1]);
+//   Serial.print(" ");
+
+//   Serial.print("ReceiverValue_2:");
+//   Serial.print(ReceiverValue[2]);
+//   Serial.print(" ");
+
+//   Serial.print("ReceiverValue_3:");
+//   Serial.print(ReceiverValue[3]); // End the line for Serial Plotter to process
+  
+//   Serial.print("MotorInput1:");
+//   Serial.print(MotorInput1);
+//   Serial.print(" ");
+
+//   Serial.print("MotorInput2:");
+//   Serial.print(MotorInput2);
+//   Serial.print(" ");
+
+//   Serial.print("MotorInput3:");
+//   Serial.print(MotorInput3);
+//   Serial.print(" ");
+
+//   Serial.print("MotorInput4:");
+//   Serial.println(MotorInput4); // End the line for Serial Plotter to process
+
+
+
+  // Serial.print(channel_1_pwm);
+  //   Serial.print(" ");
+  // Serial.print(channel_2_pwm);
+  //   Serial.print(" ");
+  // Serial.print(channel_3_pwm);
+  //   Serial.print(" ");
+  // Serial.print(channel_4_pwm);
+  //   Serial.print(" ");
+
+//Reciever signals
+
+  // Serial.println(ReceiverValue[0]);
+  // Serial.print(" ");
+  // Serial.print(ReceiverValue[1]);
+  // Serial.print(" ");
+  // Serial.print(ReceiverValue[2]);
+  // Serial.print(" ");
+  // Serial.println(ReceiverValue[3]);
+  // Serial.print("  ");
  
   // Serial.print(ReceiverValue[4]);
   // Serial.print(" - ");
   // Serial.print(ReceiverValue[5]);
   // Serial.print(" - ");
+
+
 
 //Motor PWMs in us
   // Serial.print("MotVals-");
@@ -784,7 +906,7 @@ mot4.write(MotorInput4 * 0.18 -180);
   // Serial.print(MotorInput3);
   // Serial.print("  ");
   // Serial.print(MotorInput4);
-  // Serial.print(" -- ");
+  // Serial.print(" ");
 
 // //Reciever translated rates
 //   Serial.print(DesiredRateRoll);
