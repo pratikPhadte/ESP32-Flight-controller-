@@ -1,6 +1,15 @@
 # ESP32 Flight Controller  
 
 I have chosen ESP32 as a flight controller mainly because of its cost, WiFi & BLE capabilities. Which one can exploit to integrate with ROS. 
+---
+
+## YouTube Video Links  
+
+- [Flight Demonstration](https://youtu.be/PweCWXNrxg0?si=KJHE-g0SIH3p4Ixf)  
+
+- [Understanding PID Controller](https://youtu.be/dMRDzicSvXk?si=4SlX_EvzxvCbH7zv)
+
+- [Tuning of PID Controller gains via ESP32 webserver WiFi](https://youtu.be/kl3Dlm11AEQ?si=NrJVn8WFx9-ViMtl)
 
 ---
 
@@ -42,16 +51,8 @@ The quadcopter motors and propellers possess significant destructive energy. Alw
 - Verify that all propellers are installed in the correct direction and that motor rotations match the schematic.  
 - Recheck motor and propeller functionality before uploading the main flight code.  
 
+
 ---
-
-## YouTube Video Links  
-
-- [Flight Demonstration](https://youtu.be/PweCWXNrxg0?si=KJHE-g0SIH3p4Ixf)  
-
-- [Understanding PID Controller](https://youtu.be/dMRDzicSvXk?si=4SlX_EvzxvCbH7zv)
-
-- [Tuning of PID Controller gains via ESP32 webserver WiFi](https://youtu.be/kl3Dlm11AEQ?si=NrJVn8WFx9-ViMtl)
-
 
 ## References
 - [Joop Brooking](https://www.youtube.com/@Joop_Brokking)  
