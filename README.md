@@ -17,10 +17,12 @@ I have chosen ESP32 as a flight controller mainly because of its cost, WiFi & BL
 
 Before attempting flight, ensure all components are functioning correctly by testing them individually using the codes provided in the **testing folder**:  
 
-- Use **receiver_pwm_esp32** to verify the signals from the receiver and transmitter.  
-- Use **measure_angles_mpu** to confirm the IMU is measuring angles accurately.  
-- Use **Motors calibration** to calibrate all ESCs and ensure motors are properly synchronized.  
-- Use **Voltage measurement esp32** to validate the voltage sensing circuit. This part is not yet impleneted in the main FC code.
+- Use **/ESP32-Flight-controller-/test/reciever_pwm_esp32/reciever_pwm_esp32.ino** to verify the signals from the receiver and transmitter.  
+- Use **/ESP32-Flight-controller-/test/measure_angles_from_mpu/measure_angles_from_mpu.ino** to confirm the IMU is measuring angles accurately.  
+- Use **/ESP32-Flight-controller-/test/motor_calibration_esp32/motor_calibration_esp32.ino** to calibrate all ESCs and ensure motors are properly synchronized.  
+- Use **/ESP32-Flight-controller-/test/Voltage_measurement_esp32/Voltage_measurement_esp32.ino** to validate the voltage sensing circuit. This part is not yet impleneted in the main Flight controller (Can be skipped).
+
+- Use **/workspaces/ESP32-Flight-controller-/test/anglemode_flightcontroller_ver3_PID_values_tuning_webserver/anglemode_flightcontroller_ver3_PID_values_tuning_webserver.ino** to tune the PID gains of your drone. Do this step when you have calibrated your drone and ensured proper motor direction, propeller direction is as per the hand drawn cirucit diagram in **/ESP32-Flight-controller-/resources/Circuit diagram _HANDDRAWN_ only IMU_01.pdf**
 
 ---
 
@@ -35,22 +37,22 @@ Before flying the drone, follow these steps:
 2. **Update the Main Flight Code**  
    - Enter the calibrated IMU values into the **/ESP32-Flight-controller-/src/Anglemode_flightcontroller_ver3.ino** code's void Setup() with these values before uploading it to the ESP32.  
 
+3. **Tune PID gains** 
+    - Refer the PID tuning video in the above YT links and tune your quadcopter, refer the **/ESP32-Flight-controller-/test/anglemode_flightcontroller_ver3_PID_values_tuning_webserver/anglemode_flightcontroller_ver3_PID_values_tuning_webserver.ino** code for seamless WIFI pid gains tuning. For a F450 frame the PID values should be more or less the same as the values in the original code. For other drone frames it might varry in a slight manner.
+
 3. **Prepare for Flight**  
    - Double-check motor rotations and propeller    orientations as per the schematic.  
    - Ensure all connections are secure.  
-   - Perform an initial outdoor test for safety.  
+   
 
-4. You're Ready!
+5. **Safety First!!!!**
+    -The quadcopter motors and propellers possess significant destructive energy. Always:  
+    - Conduct initial tests outdoors.  
+    - Verify that all propellers are installed in the correct direction and that motor rotations match the schematic.  
+    - Recheck motor and propeller functionality before uploading the main flight code.  
 
----
-
-## Safety First  
-
-The quadcopter motors and propellers possess significant destructive energy. Always:  
-- Conduct initial tests outdoors.  
-- Verify that all propellers are installed in the correct direction and that motor rotations match the schematic.  
-- Recheck motor and propeller functionality before uploading the main flight code.  
-
+5. **You're Ready to fly!**
+    - Perform an initial outdoor test for safety.  
 
 ---
 
