@@ -37,24 +37,14 @@ const int channel_4_pin = 33;
 const int channel_5_pin = 25;
 const int channel_6_pin = 26;
 
-// float Voltage, Current, BatteryRemaining, BatteryAtStart;
-// float CurrentConsumed = 0;
-// float BatteryDefault = 1300;
+
 
 uint32_t LoopTimer;
 
 float InputThrottle;
 
 
-
-
 float MotorInput1, MotorInput2, MotorInput3, MotorInput4;
-
-// void battery_voltage(void)
-// {
-//   Voltage = (float)analogRead(15) / 62;
-//   Current = (float)analogRead(21) * 0.089;
-// }
 
 void channelInterruptHandler()
 {
@@ -184,34 +174,17 @@ void setup()
   digitalWrite(15, LOW);
   delay(500);
 
-
+    delay(500);
   mot1.attach(mot1_pin,1000,2000);
+    delay(500);
   mot2.attach(mot2_pin,1000,2000);
+   delay(500);
   mot3.attach(mot3_pin,1000,2000);
+    delay(500);
   mot4.attach(mot4_pin,1000,2000);
+    delay(500);
 
-  // battery_voltage();
 
-  // if (Voltage > 8.3)
-  // {
-  //   digitalWrite(2, LOW);
-  //   BatteryAtStart = BatteryDefault;
-  // }
-  // else if (Voltage < 7.5)
-  // {
-  //   BatteryAtStart = 30 / 100 * BatteryDefault;
-  // }
-  // else
-  // {
-  //   digitalWrite(2, LOW);
-  //   BatteryAtStart = (82 * Voltage - 580) / 100 * BatteryDefault;
-  // }
-
-  // while (ReceiverValue[2] < 1020 || ReceiverValue[2] > 1050)
-  // {
-  //   channelInterruptHandler();
-  //   delay(4);
-  // }
   LoopTimer = micros();
 
 }
@@ -220,21 +193,12 @@ void loop()
 {
   InputThrottle = ReceiverValue[2];
 
-  // if (InputThrottle > 1800)
-  // {
-  //   InputThrottle = 1800;
-  // }
- 
+
  //set input as reciever throttle for calibration
   MotorInput1 =  InputThrottle ;
   MotorInput2 =  InputThrottle ;
   MotorInput3 =  InputThrottle ;
   MotorInput4 =  InputThrottle ;
-
-  //  esc_1 = throttle - pid_output_pitch + pid_output_roll - pid_output_yaw;        //Calculate the pulse for esc 1 (front-right - CCW).
-  //   esc_2 = throttle + pid_output_pitch + pid_output_roll + pid_output_yaw;        //Calculate the pulse for esc 2 (rear-right - CW).
-  //   esc_3 = throttle + pid_output_pitch - pid_output_roll - pid_output_yaw;        //Calculate the pulse for esc 3 (rear-left - CCW).
-  //   esc_4 = throttle - pid_output_pitch - pid_output_roll + pid_output_yaw;
 
   if (MotorInput1 > 2000)
   {
@@ -257,23 +221,6 @@ void loop()
   }
 
 
-  // int ThrottleIdle = 1180;
-  // if (MotorInput1 < ThrottleIdle)
-  // {
-  //   MotorInput1 = ThrottleIdle;
-  // }
-  // if (MotorInput2 < ThrottleIdle)
-  // {
-  //   MotorInput2 = ThrottleIdle;
-  // }
-  // if (MotorInput3 < ThrottleIdle)
-  // {
-  //   MotorInput3 = ThrottleIdle;
-  // }
-  // if (MotorInput4 < ThrottleIdle)
-  // {
-  //   MotorInput4 = ThrottleIdle;
-  // }
 
 
 
@@ -283,60 +230,30 @@ void loop()
   mot4.write(map(MotorInput4, 1000, 2000, 0, 180));
 
 
-//  battery_voltage();
-//   CurrentConsumed = Current * 1000 * 0.004 / 3600 + CurrentConsumed;
-//   BatteryRemaining = (BatteryAtStart - CurrentConsumed) / BatteryDefault * 100;
+//Reciever signals
+  Serial.print(ReceiverValue[0]);
+  Serial.print(" - ");
+  Serial.print(ReceiverValue[1]);
+  Serial.print(" - ");
+  Serial.print(ReceiverValue[2]);
+  Serial.print(" - ");
+  Serial.print(ReceiverValue[3]);
+  Serial.print(" - ");
+  Serial.print(ReceiverValue[4]);
+  Serial.print(" - ");
+  Serial.print(ReceiverValue[5]);
+  Serial.print(" -- ");
 
-  // if (BatteryRemaining <= 30)
-  //   digitalWrite(4, HIGH);
-  // else
-  //   digitalWrite(4, LOW);
-
-
-// //Reciever signals
-//   Serial.print(ReceiverValue[0]);
-//   Serial.print(" - ");
-//   Serial.print(ReceiverValue[1]);
-//   Serial.print(" - ");
-//   Serial.print(ReceiverValue[2]);
-//   Serial.print(" - ");
-//   Serial.print(ReceiverValue[3]);
-//   Serial.print(" --- ");
-//   // Serial.print(ReceiverValue[4]);
-//   // Serial.print(" - ");
-//   // Serial.print(ReceiverValue[5]);
-//   // Serial.print(" - ");
 // //Motor PWMs in us
-//   Serial.print("  ");
-//   Serial.print(MotorInput1);
-//   Serial.print("  ");
-//   Serial.print(MotorInput2);
-//   Serial.print("  ");
-//   Serial.print(MotorInput3);
-//   Serial.print("  ");
-//   Serial.print(MotorInput4);
-//   Serial.print(" -- ");
-// //Reciever translated rates
-//   Serial.print(DesiredRateRoll);
-//   Serial.print("  ");
-//   Serial.print(DesiredRatePitch);
-//   Serial.print("  ");
-//   Serial.print(DesiredRateYaw);
-//   Serial.print(" -- ");
-// //Gyro Rates
-//   Serial.print(RateRoll);
-//   Serial.print("  ");
-//   Serial.print(RatePitch);
-//   Serial.print("  ");
-//   Serial.print(RateYaw);
-//   Serial.print(" -- ");
-// // PID outputs
-// Serial.print(InputPitch);
-//   Serial.print("  ");
-// Serial.print(InputRoll);
-//   Serial.print("  ");
-// Serial.print(InputYaw);
-//   Serial.print(" -- ");
+  Serial.print("  ");
+  Serial.print(MotorInput1);
+  Serial.print("  ");
+  Serial.print(MotorInput2);
+  Serial.print("  ");
+  Serial.print(MotorInput3);
+  Serial.print("  ");
+  Serial.print(MotorInput4);
+  Serial.println("   ");
 
 
  
@@ -346,7 +263,7 @@ void loop()
     //  Serial.print(LoopTimer);
   }
 
-    // Serial.println("   ");
+
 
 }
 

@@ -11,7 +11,7 @@ By the act of copying, use, setup or assembly, the user accepts all resulting li
 
 1.0  29 December 2022 -  initial release
 */
-
+//taken from Carbon Aeronautics
 #include <Wire.h>
 float RateRoll, RatePitch, RateYaw;
 float AccX, AccY, AccZ;
@@ -50,7 +50,6 @@ void gyro_signals(void) {
   AccX=(float)AccXLSB/4096;
   AccY=(float)AccYLSB/4096;
   AccZ=(float)AccZLSB/4096;
-  AccZ=AccZ-0.26; // calibration offset
   AngleRoll=atan(AccY/sqrt(AccX*AccX+AccZ*AccZ))*1/(3.142/180);
   AnglePitch=-atan(AccX/sqrt(AccY*AccY+AccZ*AccZ))*1/(3.142/180);
 }
@@ -68,17 +67,17 @@ void setup() {
 }
 void loop() {
   gyro_signals();
-  // Serial.print("Acceleration X [g]= ");
-  // Serial.print(AccX);
-  // Serial.print(" Acceleration Y [g]= ");
-  // Serial.print(AccY);
-  // Serial.print(" Acceleration Z [g]= ");
-  // Serial.println(AccZ);
+  Serial.print("Acceleration X [g]= ");
+  Serial.print(AccX);
+  Serial.print(" Acceleration Y [g]= ");
+  Serial.print(AccY);
+  Serial.print(" Acceleration Z [g]= ");
+  Serial.println(AccZ);
+  Serial.print("  ");
   Serial.print("Roll Angle=");
   Serial.print(AngleRoll);
-  //serial.print("  ");
-    Serial.print("Roll Pitch=");
+  serial.print("  ");
+  Serial.print("Roll Pitch=");
   Serial.println(AnglePitch);
-  //Serial.println(" ");
   delay(50);
 }

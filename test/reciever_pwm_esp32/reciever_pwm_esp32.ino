@@ -180,8 +180,7 @@ int led_time=100;
 }
 
 void loop() {
-   channelInterruptHandler();
-  neutralPositionAdjustment();
+
 //Reciever signals
   Serial.print(ReceiverValue[0]);
   Serial.print(" - ");
