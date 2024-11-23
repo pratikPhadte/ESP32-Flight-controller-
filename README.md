@@ -2,23 +2,6 @@
 
 I have chosen ESP32 as a flight controller mainly because of its cost, WiFi & BLE capabilities. Which one can exploit to integrate with ROS. 
 
-## Code Files  
-
-1. **Anglemode_flightcontroller_ver3**  
-   - This is the complete code for the ESP32 flight controller. You may need to upload additional libraries in your Arduino IDE. Before uploading the code to the ESP32.
-
-2. **receiver_pwm_esp32**  
-   - This code is used to independently test the receiver & transmitter signals on the serial monitor. Connect the receiver to the ESP32 board as mentioned in the schematic.  
-
-3. **measure_angles_mpu**  
-   - This is an IMU angle checker. Connect the IMU to the ESP32 via the I2C protocol as specified in the schematic.  
-
-4. **Motors calibration**  
-   - Use this code to calibrate the motor's ESCs before the flight. This ensures that all motors start simultaneously. Follow the proper ESC calibration procedure while using this code.  
-
-5. **Voltage measurement esp32**  
-   - This code measures the voltage level of the LiPo 11V battery. You may need to adjust the code to match the actual resistor values used in your circuit.  
-
 ---
 
 ## Testing  
