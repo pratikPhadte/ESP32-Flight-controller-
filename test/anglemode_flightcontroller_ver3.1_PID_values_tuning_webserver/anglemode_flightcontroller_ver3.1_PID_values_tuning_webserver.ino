@@ -51,7 +51,7 @@ Servo mot3;
 Servo mot4;
 const int mot1_pin = 13;
 const int mot2_pin = 12;
-const int mot3_pin = 16; //14 for perf board
+const int mot3_pin = 14; //14 for perf board
 const int mot4_pin = 27;
 
 volatile uint32_t current_time;
