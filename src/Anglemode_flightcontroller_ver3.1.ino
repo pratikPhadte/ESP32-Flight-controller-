@@ -37,7 +37,7 @@ Servo mot4;
 
 const int mot1_pin = 13;
 const int mot2_pin = 12;
-const int mot3_pin = 16; //is 14 for some designed FC on perforated baords
+const int mot3_pin = 14; //is 14 for some designed FC on perforated baords
 const int mot4_pin = 27;
 
 volatile uint32_t current_time;
