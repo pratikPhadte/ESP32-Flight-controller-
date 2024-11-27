@@ -76,7 +76,7 @@ void loop() {
   Serial.print("  ");
   Serial.print("Roll Angle=");
   Serial.print(AngleRoll);
-  serial.print("  ");
+  Serial.print("  ");
   Serial.print("Roll Pitch=");
   Serial.println(AnglePitch);
   delay(50);
