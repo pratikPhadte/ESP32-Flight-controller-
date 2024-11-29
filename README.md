@@ -7,7 +7,7 @@ I have chosen ESP32 as a flight controller mainly because of its cost, WiFi & BL
 #### Dorm Flight  
 [![Dorm flight](https://img.youtube.com/vi/2goVaf8LJQM/0.jpg)](https://youtu.be/2goVaf8LJQM)
 
-#### Flight Demonstration  
+#### Flight Demonstration & few guidelines before building
 [![Flight Demonstration](https://img.youtube.com/vi/PweCWXNrxg0/0.jpg)](https://youtu.be/PweCWXNrxg0?si=KJHE-g0SIH3p4Ixf)
 
 #### Understanding PID Controller  
