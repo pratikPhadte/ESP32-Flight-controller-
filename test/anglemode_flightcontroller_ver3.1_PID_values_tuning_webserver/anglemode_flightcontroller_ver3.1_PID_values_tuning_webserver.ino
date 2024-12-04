@@ -14,7 +14,7 @@
 
 // REPLACE WITH YOUR NETWORK CREDENTIALS
 //COnnect your PC/mobile to this wifi and open the IP address from the serial monitor in your browser.
- const char* ssid = "your_wifi_ssid";
+ const char* ssid = "your_wifi_name";
  const char* password = "your_wifi_password";
 
 float PRateRoll = 0.625; 
