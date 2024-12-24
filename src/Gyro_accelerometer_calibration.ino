@@ -1,103 +1,172 @@
 #include <Wire.h>
 
+// Raw sensor data variables
 int16_t AccXLSB, AccYLSB, AccZLSB;
 int16_t GyroX, GyroY, GyroZ;
+
+// Processed data variables
+volatile float RateRoll, RatePitch, RateYaw;
 float AccX, AccY, AccZ;
-float AngleRoll, AnglePitch;
-volatile float RatePitch, RateRoll, RateYaw;
-volatile float RateCalibrationPitch, RateCalibrationRoll, RateCalibrationYaw,AccZCalibration,AccYCalibration,AccXCalibration;
-int RateCalibrationNumber;
 
-// Variables to store the calibrated values
-float calAccX, calAccY, calAccZ;
+// Calibration variables
+volatile float RateCalibrationPitch = 0, RateCalibrationRoll = 0, RateCalibrationYaw = 0;
+float AccXCalibration = 0, AccYCalibration = 0, AccZCalibration = 0;
 
-void setup() {
+// Number of samples for calibration
+const int CalibrationSamples = 2000;
+
+void gyro_signals(void)
+{
+  // Configure the low-pass filter (DLPF - Digital Low Pass Filter)
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1A); // Write to the configuration register (0x1A)
+  Wire.write(0x05); // Set DLPF_CFG to 5, which configures a low-pass filter at ~10 Hz
+  Wire.endTransmission();
+
+  // Configure accelerometer sensitivity
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1C); // Write to accelerometer configuration register (0x1C)
+  Wire.write(0x10); // Set sensitivity to ±8g
+  Wire.endTransmission();
+
+  // Begin reading accelerometer data from register 0x3B
+  Wire.beginTransmission(0x68);
+  Wire.write(0x3B); // Address of the first accelerometer data register (X-axis high byte)
+  Wire.endTransmission();
+
+  // Request 6 bytes of accelerometer data (X, Y, Z axes, each 16 bits)
+  Wire.requestFrom(0x68, 6);
+
+  // Combine the high and low bytes to form 16-bit signed integers
+  AccXLSB = Wire.read() << 8 | Wire.read(); // X-axis acceleration
+  AccYLSB = Wire.read() << 8 | Wire.read(); // Y-axis acceleration
+  AccZLSB = Wire.read() << 8 | Wire.read(); // Z-axis acceleration
+
+  // Set gyro sensitivity scale factor
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1B); // Write to gyro configuration register (0x1B)
+  Wire.write(0x08); // Set sensitivity to ±500 degrees/sec (scale factor: 65.5 LSB/°/sec)
+  Wire.endTransmission();
+
+  // Begin reading gyro data from register 0x43
+  Wire.beginTransmission(0x68);
+  Wire.write(0x43); // Address of the first gyro data register (X-axis high byte)
+  Wire.endTransmission();
+
+  // Request 6 bytes of gyro data (X, Y, Z axes, each 16 bits)
+  Wire.requestFrom(0x68, 6);
+
+  // Combine the high and low bytes to form 16-bit signed integers
+  GyroX = Wire.read() << 8 | Wire.read(); // X-axis gyro rate
+  GyroY = Wire.read() << 8 | Wire.read(); // Y-axis gyro rate
+  GyroZ = Wire.read() << 8 | Wire.read(); // Z-axis gyro rate
+
+  // Convert gyro raw data (LSB) to angular velocity in degrees/sec
+  RateRoll = (float)GyroX / 65.5;  // Roll rate (X-axis rotation)
+  RatePitch = (float)GyroY / 65.5; // Pitch rate (Y-axis rotation)
+  RateYaw = (float)GyroZ / 65.5;   // Yaw rate (Z-axis rotation)
+
+  // Convert accelerometer raw data (LSB) to acceleration in g's
+  AccX = (float)AccXLSB / 4096; // X-axis acceleration
+  AccY = (float)AccYLSB / 4096; // Y-axis acceleration
+  AccZ = (float)AccZLSB / 4096; // Z-axis acceleration
+}
+
+void calibrate_sensors()
+{
+  float sumAccX = 0, sumAccY = 0, sumAccZ = 0;
+  float sumGyroRoll = 0, sumGyroPitch = 0, sumGyroYaw = 0;
+
+  // Collect multiple samples to calculate average values
+  for (int i = 0; i < CalibrationSamples; i++)
+  {
+    gyro_signals();
+
+    sumAccX += AccX;
+    sumAccY += AccY;
+    sumAccZ += AccZ;
+
+    sumGyroRoll += RateRoll;
+    sumGyroPitch += RatePitch;
+    sumGyroYaw += RateYaw;
+
+    delay(1); // Short delay to avoid overwhelming the sensor
+  }
+
+  // Calculate average offset values
+  AccXCalibration = sumAccX / CalibrationSamples;
+  AccYCalibration = sumAccY / CalibrationSamples;
+  AccZCalibration = (sumAccZ / CalibrationSamples) - 1.0; // Subtract 1g for gravity
+
+  RateCalibrationRoll = sumGyroRoll / CalibrationSamples;
+  RateCalibrationPitch = sumGyroPitch / CalibrationSamples;
+  RateCalibrationYaw = sumGyroYaw / CalibrationSamples;
+
+  // Print calibrated values
+  Serial.println("Calibration Completed:");
+  Serial.print("AccX Calibration: ");
+  Serial.println(AccXCalibration);
+  Serial.print("AccY Calibration: ");
+  Serial.println(AccYCalibration);
+  Serial.print("AccZ Calibration: ");
+  Serial.println(AccZCalibration);
+  Serial.print("Gyro Roll Calibration: ");
+  Serial.println(RateCalibrationRoll);
+  Serial.print("Gyro Pitch Calibration: ");
+  Serial.println(RateCalibrationPitch);
+  Serial.print("Gyro Yaw Calibration: ");
+  Serial.println(RateCalibrationYaw);
+}
+
+void setup()
+{
   Serial.begin(115200);
+
+  // Set the clock speed of I2C to 400kHz
+  Wire.setClock(400000);
   Wire.begin();
-  
-  // Initialize the MPU6050 sensor
-  Wire.beginTransmission(0x68); // MPU6050 address
+  delay(250);
+
+  // Start the gyro in power mode.
+  Wire.beginTransmission(0x68);
   Wire.write(0x6B); // Power management register
   Wire.write(0x00); // Wake up MPU6050
   Wire.endTransmission(true);
-  
+
   delay(100);
-  
+
   // Calibration instructions
   Serial.println("Welcome to quadcopter IMU calibration");
   Serial.println("Place the quadcopter flat on a surface and press 'Space bar' and then 'Enter' to begin Gyro and AccZ calibration.");
-  while (!Serial.available()) {}  // Wait for the user to press 'Enter'
-  Serial.read();  // Clear the input buffer
-  
-  //For all axis calibration
-  //calibrateGyro();
-  //calibrateAcc();
- 
-  //Simple calibration
-  calibrateGyroSimple();
-  Serial.print(" GyroX: ");
-  Serial.print(RateRoll);
-  Serial.print(", GyroY: ");
-  Serial.print(RatePitch);
-  Serial.print(", GyroZ: ");
-  Serial.print(RateYaw);
-  Serial.print(", AccX: ");
-  Serial.print(AccX);
-  Serial.print(", AccY: ");
-  Serial.print(AccY);
-  Serial.print(", AccZ: ");
-  Serial.println(AccZ);
-  Serial.println(" Gyro and AccZ calibration done!");
+  while (!Serial.available()); // Wait for the user to press 'Enter'
+  Serial.read(); // Clear the input buffer
 
-//Gyro Calibrated Values
-    Serial.println("");
-  Serial.print("RateCalibrationRoll=");
-  Serial.print(RateCalibrationRoll);
-  Serial.println(";");
-  Serial.print("RateCalibrationPitch=");
-  Serial.print(RateCalibrationPitch);
-  Serial.println(";");
-  Serial.print("RateCalibrationYaw=");
-  Serial.print(RateCalibrationYaw);
-  Serial.println(";");
-  Serial.print("AccXCalibration=");
-  Serial.print(AccXCalibration);
-  Serial.println(";");
-  Serial.print("AccYCalibration=");
-  Serial.print(AccYCalibration);
-  Serial.println(";");
-  Serial.print("AccZCalibration=");
-  Serial.print(AccZCalibration);
-  Serial.println(";");
-  
-  Serial.println("Press 'Space bar' and then 'Enter' to print Gyro and Acc continuosuly");
-  while (!Serial.available()) {} 
-  Serial.read();  
-
+  // Perform sensor calibration
+  Serial.println("Calibrating sensors...");
+  calibrate_sensors();
 }
-void loop() {
 
-
-
+void loop()
+{
   gyro_signals();
 
-RateRoll -= RateCalibrationRoll;
-RatePitch -= RateCalibrationPitch;
-RateYaw -= RateCalibrationYaw;
+  // Correct the measured values using calibration offsets
+  RateRoll -= RateCalibrationRoll;
+  RatePitch -= RateCalibrationPitch;
+  RateYaw -= RateCalibrationYaw;
 
-AccX -= AccXCalibration ;
-AccY -= AccYCalibration ;
-AccZ -= AccZCalibration;
+  AccX -= AccXCalibration;
+  AccY -= AccYCalibration;
+  AccZ -= AccZCalibration;
 
-  //Print the accelerometer and gyroscope values
-  
+  // Print the accelerometer and gyroscope values
   Serial.print("AccX: ");
   Serial.print(AccX);
   Serial.print(", AccY: ");
   Serial.print(AccY);
   Serial.print(", AccZ: ");
   Serial.print(AccZ);
-  
+
   Serial.print(" | GyroX: ");
   Serial.print(RateRoll);
   Serial.print(", GyroY: ");
@@ -107,128 +176,3 @@ AccZ -= AccZCalibration;
 
   delay(1); // Delay for 100ms before reading again
 }
-
-void gyro_signals(void) {
-  Wire.beginTransmission(0x68);
-  Wire.write(0x1A); // Set accelerometer filters
-  Wire.write(0x05);
-  Wire.endTransmission();
-  
-  Wire.beginTransmission(0x68);
-  Wire.write(0x1C); // Set gyroscope filters
-  Wire.write(0x10);
-  Wire.endTransmission();
-  
-  Wire.beginTransmission(0x68);
-  Wire.write(0x3B); // Start reading accelerometer data
-  Wire.endTransmission();
-  
-  Wire.requestFrom(0x68, 6); // Request 6 bytes of accelerometer data
-  AccXLSB = Wire.read() << 8 | Wire.read();
-  AccYLSB = Wire.read() << 8 | Wire.read();
-  AccZLSB = Wire.read() << 8 | Wire.read();
-
-  // Set gyroscope data to read
-  Wire.beginTransmission(0x68);
-  Wire.write(0x1B); // Set gyroscope settings
-  Wire.write(0x08);
-  Wire.endTransmission();
-  
-  Wire.beginTransmission(0x68);
-  Wire.write(0x43); // Read gyroscope data
-  Wire.endTransmission();
-  
-  Wire.requestFrom(0x68, 6); // Request 6 bytes of gyroscope data
-  GyroX = Wire.read() << 8 | Wire.read();
-  GyroY = Wire.read() << 8 | Wire.read();
-  GyroZ = Wire.read() << 8 | Wire.read();
-  
-  // Convert raw gyro values to degrees per second (dps)
-  RateRoll = (float)GyroX / 65.5;
-  RatePitch = (float)GyroY / 65.5;
-  RateYaw = (float)GyroZ / 65.5;
-  
-  // Convert raw accelerometer values to g (acceleration due to gravity)
-  AccX = (float)AccXLSB / 4096;
-  AccY = (float)AccYLSB / 4096;
-  AccZ = (float)AccZLSB / 4096;
-  
-  // // Calculate Roll and Pitch angles using accelerometer data
-  // AngleRoll = atan(AccY / sqrt(AccX * AccX + AccZ * AccZ)) * 57.29; // Convert to degrees
-  // AnglePitch = -atan(AccX / sqrt(AccY * AccY + AccZ * AccZ)) * 57.29; // Convert to degrees
-}
-
-
-void calibrateAcc()
-{
-    //AccY calc
-  Serial.println("Place the quadcopter on its Right side with nose forward and press 'Space bar' and then 'Enter'.");
-  while (!Serial.available()) {}  // Wait for the user to press 'Enter'
-  Serial.read();  // Clear the input buffer
-  gyro_signals(); 
-  Serial.print("AccX: ");
-  Serial.print(AccX);
-  Serial.print(", AccY: ");
-  Serial.print(AccY);
-  Serial.print(", AccZ: ");
-  Serial.println(AccZ);
-  AccYCalibration = AccY - 1;  
-  
-  //Acc X calc
-  Serial.println("Place the quadcopter nose up and press 'Space bar' and then 'Enter'.");
-  while (!Serial.available()) {}  // Wait for the user to press 'Enter'
-  Serial.read();  // Clear the input buffer
-  gyro_signals(); // Record X axis values
-  Serial.print("AccX: ");
-  Serial.print(AccX);
-  Serial.print(", AccY: ");
-  Serial.print(AccY);
-  Serial.print(", AccZ: ");
-  Serial.println(AccZ);
-  AccXCalibration = AccX - 1;  
-}
-
-
-void calibrateGyro()
-{
-    for (RateCalibrationNumber = 0; RateCalibrationNumber < 1000; RateCalibrationNumber++)
-  {
-    gyro_signals();
-    RateCalibrationRoll += RateRoll;
-    RateCalibrationPitch += RatePitch;
-    RateCalibrationYaw += RateYaw;
-    AccZCalibration +=  AccZ;
-
-    delay(1);
-  }
-  RateCalibrationRoll /= 1000;
-  RateCalibrationPitch /= 1000;
-  RateCalibrationYaw /= 1000;
-  AccZCalibration /=1000;
-  AccZCalibration = AccZCalibration-1 ;
-}
-
-void calibrateGyroSimple()
-{
-    for (RateCalibrationNumber = 0; RateCalibrationNumber < 2000; RateCalibrationNumber++)
-  {
-    gyro_signals();
-    RateCalibrationRoll += RateRoll;
-    RateCalibrationPitch += RatePitch;
-    RateCalibrationYaw += RateYaw;
-    AccXCalibration +=  AccX;
-    AccYCalibration +=  AccY;
-    AccZCalibration +=  AccZ;
-
-    delay(1);
-  }
-  RateCalibrationRoll /= 2000;
-  RateCalibrationPitch /= 2000;
-  RateCalibrationYaw /= 2000;
-  AccXCalibration /=2000;
-  AccYCalibration /=2000;
-  AccZCalibration /=2000;
-  AccZCalibration = AccZCalibration-1 ;
-}
-
-
