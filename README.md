@@ -4,6 +4,10 @@ I have chosen ESP32 as a flight controller mainly because of its cost, WiFi & BL
 ---
 
 ## Watch Tutorial videos
+
+#### How to Make? 
+[![How to Make?](https://img.youtube.com/vi/1zZbk0xWIrc/0.jpg)](https://youtu.be/1zZbk0xWIrc)
+
 #### Dorm Flight  
 [![Dorm flight](https://img.youtube.com/vi/2goVaf8LJQM/0.jpg)](https://youtu.be/2goVaf8LJQM)
 
